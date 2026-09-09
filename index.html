@@ -89,10 +89,6 @@ select:focus,input:focus{border-color:var(--yellow)}
     <option value="3d">3D</option><option value="1w">1W</option>
     <option value="1M">1M (Monthly · 1Y view)</option>
   </select>
-  <select id="modeSel">
-    <option value="swing" selected>Swing (RR 1:3)</option>
-    <option value="scalp">Scalp (RR 1:1.5)</option>
-  </select>
   <div class="price-box">
     <span id="livePrice">—</span>
     <span id="priceChg">—</span>
@@ -160,11 +156,6 @@ select:focus,input:focus{border-color:var(--yellow)}
     <h3>Real-Time Chart — Binance <span id="chartCoin" style="color:var(--yellow)"></span> <span id="wsStatus" style="float:right;color:var(--green)">● LIVE</span></h3>
     <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
       <button class="ind-btn" id="indVol">VOL</button>
-      <button class="ind-btn on" id="indE20">EMA 20</button>
-      <button class="ind-btn on" id="indE50">EMA 50</button>
-      <button class="ind-btn on" id="indE200">EMA 200</button>
-      <button class="ind-btn on" id="indST">Supertrend</button>
-      <button class="ind-btn on" id="indVWAP">VWAP</button>
       <button class="ind-btn" id="indRSI">RSI</button>
       <span style="flex:1"></span>
       <button class="ind-btn" id="btnDraw">📈 Draw Line</button>
@@ -657,7 +648,6 @@ document.getElementById('symbolSel').addEventListener('change',e=>{
   document.getElementById('btnTrack').textContent='🛡️ Arm SL Guard — I\'m In';
   connectWS();loadAll();});
 document.getElementById('tfSel').addEventListener('change',e=>{tf=e.target.value;avgHoldBars=null;loadAll();});
-document.getElementById('modeSel').addEventListener('change',e=>{mode=e.target.value;renderSignal();});
 document.getElementById('btnBacktest').addEventListener('click',e=>{
   e.target.textContent='⏳ Running…';
   setTimeout(()=>{runBacktestUI();e.target.textContent='⚡ Run Backtest (Live Data)';},50);});
@@ -677,7 +667,7 @@ document.getElementById('btnNotify').addEventListener('click',async e=>{
   if(p==='granted')notify('TradeOptix Ready','SL alerts enabled.');});
 
 /* indicator toggles */
-[['indVol','vol'],['indE20','e20'],['indE50','e50'],['indE200','e200'],['indST','st'],['indVWAP','vwap'],['indRSI','rsi']]
+[['indVol','vol'],['indRSI','rsi']]
 .forEach(([id,key])=>{document.getElementById(id).addEventListener('click',e=>{
   indOn[key]=!indOn[key];e.target.className='ind-btn'+(indOn[key]?' on':'');
   if(klines.length)buildOverlays();});});
