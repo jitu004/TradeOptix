@@ -140,7 +140,7 @@ select:focus,input:focus{border-color:var(--yellow)}
         <div id="chkST" style="font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border)">—</div>
         <div id="chkVWAP" style="font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border)">—</div>
         <div id="chkRSI" style="font-size:12px;padding:4px 0">—</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:6px">All 4 green = high-probability setup. Any red = wait for better entry.</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:6px">Live monitor — watch the checklist turn green as the setup forms. All 4 green + LONG/SHORT card = TAKE THE TRADE. Any red = WAIT.</div>
       </div>
     </div>
 
@@ -436,6 +436,7 @@ function renderSignal(){
   if(!activeSignal){card.className='signal-card sig-wait';st.textContent='NO TRADE';
     ss.textContent='No valid setup — patience is a position. Never force a trade.';
     det.style.display='none';
+    document.getElementById('btnTrack').disabled=true;
     setText('kvType','—');
     setText('kvHold','—');
     setText('kvAge','—');
@@ -446,6 +447,7 @@ function renderSignal(){
     st.textContent=s.dir===1?'LONG ▲':'SHORT ▼';
     ss.textContent=`${CFG.modes[mode].label} · ${sym} · ${tf}`;
     det.style.display='block';
+    document.getElementById('btnTrack').disabled=false;
     document.getElementById('sigSymbol').textContent=sym;
     const t2=document.getElementById('sigType2');
     t2.textContent=s.dir===1?'LONG':'SHORT';
@@ -467,20 +469,19 @@ function renderSignal(){
   }
   const chkEl=document.getElementById('sigCheck');
   if(chkEl){
-    if(!activeSignal){chkEl.style.display='none';}
-    else{
-      chkEl.style.display='block';
-      const ci=n-2,long=activeSignal.dir===1;
+    chkEl.style.display='block';
+    {
+      const ci=n-2,long=activeSignal?activeSignal.dir===1:(ind.eF[ci]>ind.eS[ci]);
       const tOk=long?(ind.eF[ci]>ind.eS[ci]&&ind.eS[ci]>ind.eL[ci]):(ind.eF[ci]<ind.eS[ci]&&ind.eS[ci]<ind.eL[ci]);
       const stOk=ind.st[ci]!=null&&ind.stDir[ci]===(long?1:-1);
       const v=ind.vwap[ci];
       const vOk=v!=null&&(long?ind.c[ci]>v:ind.c[ci]<v);
       const rOk=long?(ind.r[ci-1]<70&&ind.r[ci]>=70):(ind.r[ci-1]>30&&ind.r[ci]<=30);
-      const setChk=(id2,ok,txt)=>{const e2=document.getElementById(id2);if(e2)e2.innerHTML=`<span style="color:${ok?'var(--green)':'var(--red)'};font-weight:700">${ok?'✅ PASS':'❌ WAIT'}</span> <span style="color:var(--muted)">${txt}</span>`;};
-      setChk('chkTrend',tOk,long?'EMA 20 > 50 > 200':'EMA 20 < 50 < 200');
-      setChk('chkST',stOk,'Supertrend '+(long?'BULLISH':'BEARISH'));
-      setChk('chkVWAP',vOk,'Price '+(long?'above':'below')+' VWAP');
-      setChk('chkRSI',rOk,'RSI '+(long?'cross >70':'cross <30')+' (now '+ind.r[ci].toFixed(1)+')');
+      const setChk=(id2,ok,txt)=>{const e2=document.getElementById(id2);if(e2)e2.innerHTML=`<span style="color:${ok?'var(--green)':'var(--red)'};font-weight:700">${ok?'✅ TRADE':'❌ WAIT'}</span> <span style="color:var(--muted)">${txt}</span>`;};
+      setChk('chkTrend',tOk,'Trend Direction '+(long?'(UP)':'(DOWN)'));
+      setChk('chkST',stOk,'Market Momentum');
+      setChk('chkVWAP',vOk,'Price Position');
+      setChk('chkRSI',rOk,'Entry Trigger (strength '+ind.r[ci].toFixed(0)+'/100)');
     }
   }}
 
