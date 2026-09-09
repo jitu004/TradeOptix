@@ -140,12 +140,6 @@ select:focus,input:focus{border-color:var(--yellow)}
     <div class="panel" style="margin-top:14px">
       <h3>5-Year Verified Backtest (1D)</h3>
       <select id="vbCoin" style="width:100%;margin-bottom:8px"></select>
-      <select id="btTf" style="width:100%;margin-bottom:10px">
-        <option value="1d" selected>1D — Daily (~5.5 years data)</option>
-        <option value="4h">4H — 4 Hour (~11 months)</option>
-        <option value="1h">1H — 1 Hour (~6 weeks)</option>
-        <option value="15m">15m — 15 Minute (~10 days only)</option>
-      </select>
       <div class="stat-grid">
         <div class="stat"><div class="v" id="vbWin">—</div><div class="k">Win Rate</div></div>
         <div class="stat"><div class="v" id="vbPf">—</div><div class="k">Profit Factor</div></div>
@@ -492,11 +486,16 @@ function renderSignal(){
     }
   }}
 
+function updateEdgeBadge(){const v=VERIFIED[sym];const b=document.getElementById('edgeBadge');
+  if(!v){b.textContent='NO DATA';b.className='badge badge-mid';return;}
+  if(v.pf>=1.5&&v.win>=55){b.textContent='STRONG EDGE';b.className='badge badge-strong';}
+  else if(v.pf>=1.2){b.textContent='MODERATE EDGE';b.className='badge badge-mid';}
+  else{b.textContent='WEAK EDGE — avoid';b.className='badge badge-weak';}}
 let vbSym="BTCUSDT";
 function initVbCoin(){const sel=document.getElementById("vbCoin");if(!sel)return;
   sel.innerHTML=Object.keys(VERIFIED).map(k=>`<option value="${k}">${k.replace("USDT","")}/USDT</option>`).join("");
   sel.value=vbSym;
-  sel.addEventListener("change",e=>{vbSym=e.target.value;renderVerified();});}
+  sel.addEventListener("change",e=>{vbSym=e.target.value;});}
 function renderVerified(){
   const v=VERIFIED[vbSym];
   if(!v){['vbWin','vbPf','vbRet','vbTrades','vbHold','vbDd'].forEach(id=>document.getElementById(id).textContent='—');
@@ -660,7 +659,7 @@ async function loadAll(){
   try{
     klines=await fetchKlinesPaginated();
     if(klines.length<100)throw new Error('insufficient data');
-    computeInd(klines);renderVerified();renderSignal();
+    computeInd(klines);updateEdgeBadge();renderSignal();
   }catch(e){
     document.getElementById('sigSub').textContent='❌ Could not load Binance data — check internet and refresh.';
     console.error(e);}}
@@ -669,21 +668,19 @@ document.getElementById('symbolSel').addEventListener('change',e=>{
   sym=e.target.value;tracking=false;warnLevel=0;avgHoldBars=null;
   document.getElementById('alertBanner').style.display='none';
   document.getElementById('btnTrack').textContent='🛡️ Arm SL Guard — I\'m In';
-  if(VERIFIED[sym]){vbSym=sym;const vs=document.getElementById('vbCoin');if(vs)vs.value=sym;}
   connectWS();loadAll();loadSentiment();loadTV();});
-let btTf='1d';
 async function fetchBT(){
-  const want={'1d':2000,'4h':2000,'1h':1000,'15m':1000}[btTf]||1000;
+  const want=2000;
   const limit=1000;let endTime=undefined,all=[];
   while(all.length<want){
-    let url=`${API}/klines?symbol=${sym}&interval=${btTf}&limit=${limit}`;
+    let url=`${API}/klines?symbol=${sym}&interval=1d&limit=${limit}`;
     if(endTime)url+=`&endTime=${endTime}`;
     const r=await fetch(url);const raw=await r.json();
     if(!Array.isArray(raw)||raw.length===0)break;
     const batch=raw.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));
     all=batch.concat(all);endTime=batch[0].t-1;
     if(raw.length<limit)break;
-    if(btTf!=='1d'&&btTf!=='4h'&&all.length>=1000)break;}
+}
   return all;}
 async function runBT(){
   const btn=document.getElementById('btnBacktest');
@@ -692,13 +689,12 @@ async function runBT(){
   try{
     const data=await fetchBT();
     if(data.length<210)throw new Error('only '+data.length+' candles — need 210+');
-    tf=btTf;klines=data;computeInd(data);
+    tf='1d';klines=data;computeInd(data);
     runBacktestUI();
   }catch(e){alert('Backtest error: '+e.message);}
   finally{tf=origTf;klines=origKlines;ind=origInd;
     if(btn)btn.textContent='⚡ Run Backtest (Live Data)';}}
-document.getElementById('btnBacktest').addEventListener('click',()=>runBT());
-document.getElementById('btTf').addEventListener('change',e=>{btTf=e.target.value;});
+document.getElementById('btnBacktest').addEventListener('click',()=>{renderVerified();runBT();});
 document.getElementById('btnTrack').addEventListener('click',e=>{
   if(!activeSignal){alert('No active signal — wait for a valid setup.');return;}
   tracking=!tracking;

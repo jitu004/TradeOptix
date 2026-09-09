@@ -10,7 +10,7 @@
 
 const BINANCE = "https://data-api.binance.vision/api/v3";
 const TOP_N = 25;                       // top-25 USDT pairs by 24h volume
-const TIMEFRAMES = ["1d", "4h"];        // scan both
+const TIMEFRAMES = ["1d"];              // 4H/1H/15m tested LOSING (1y data) — daily only
 const RSI_BUY = 70, RSI_SELL = 30, SL_ATR = 2.0, RR = 3.0;
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";
 const KEY = Deno.env.get("INSFORGE_SERVICE_KEY") ?? "";
