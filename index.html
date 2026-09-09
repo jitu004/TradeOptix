@@ -130,14 +130,6 @@ select:focus,input:focus{border-color:var(--yellow)}
           <div class="sig-target sl">1) <span id="lvSL">—</span></div>
         </div>
       </div>
-      <div class="kv"><span class="k">Direction</span><span class="v" id="kvType">—</span></div>
-      <div class="kv"><span class="k">Est. Hold (exact)</span><span class="v" id="kvHold">—</span></div>
-      <div class="kv"><span class="k">Signal Age</span><span class="v" id="kvAge">—</span></div>
-      <div class="kv"><span class="k">Live P&amp;L</span><span class="v" id="kvPnl">—</span></div>
-      <div class="kv"><span class="k">RSI (14)</span><span class="v" id="kvRsi">—</span></div>
-      <div class="kv"><span class="k">Supertrend</span><span class="v" id="kvST">—</span></div>
-      <div class="kv"><span class="k">Trend (EMA 20/50)</span><span class="v" id="kvTrend">—</span></div>
-      <div class="kv"><span class="k">ATR (14)</span><span class="v" id="kvAtr">—</span></div>
       <button class="btn btn-yellow btn-block" id="btnTrack">🛡️ Arm SL Guard — I'm In</button>
       <button class="btn btn-gray btn-block" id="btnNotify">🔔 Enable Notifications</button>
       <div class="note" style="margin-bottom:0">
@@ -236,6 +228,37 @@ select:focus,input:focus{border-color:var(--yellow)}
   <div class="panel"><h3>🆕 New Listing</h3><div id="newList" style="font-size:12px;color:var(--muted)">Loading…</div></div>
 </div>
 <style>@media(max-width:1000px){.main ~ div[style*="repeat(3"]{grid-template-columns:1fr!important}}</style>
+
+<div id="coinModal" style="display:none;position:fixed;inset:0;background:rgba(4,6,10,.93);z-index:100;overflow-y:auto;padding:28px 14px">
+  <div style="max-width:920px;margin:0 auto;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div>
+        <div style="font-size:12px;color:var(--muted)">Home &rsaquo; Crypto prices &rsaquo; <span id="mName">—</span></div>
+        <div style="display:flex;align-items:baseline;gap:10px;margin-top:6px">
+          <span id="mSym" style="font-size:20px;font-weight:800;color:var(--yellow)">—</span>
+          <span class="badge badge-mid">HOT</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:12px;margin-top:4px;flex-wrap:wrap">
+          <span id="mPrice" style="font-size:34px;font-weight:800;font-family:var(--mono)">—</span>
+          <span id="mChg" style="font-size:14px">—</span>
+        </div>
+      </div>
+      <button onclick="closeCoinModal()" style="background:var(--panel2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:700">✕ Close</button>
+    </div>
+    <div style="display:flex;gap:6px;margin:16px 0 8px;flex-wrap:wrap">
+      <button class="ind-btn on m-tab" data-p="1D">1D</button>
+      <button class="ind-btn m-tab" data-p="7D">7D</button>
+      <button class="ind-btn m-tab" data-p="1M">1M</button>
+      <button class="ind-btn m-tab" data-p="3M">3M</button>
+      <button class="ind-btn m-tab" data-p="1Y">1Y</button>
+      <button class="ind-btn m-tab" data-p="YTD">YTD</button>
+    </div>
+    <canvas id="mAreaChart" style="width:100%;height:260px"></canvas>
+    <div id="mUpdated" style="color:var(--muted);font-size:11px;margin-top:6px"></div>
+    <div class="section-title" id="mStatsTitle">Market Stats in USD</div>
+    <div class="stat-grid" id="mStats" style="grid-template-columns:repeat(4,1fr)"></div>
+  </div>
+</div>
 
 <div class="footer">
   <b>Strategy:</b> EMA(20/50/200) + Supertrend + RSI(14) momentum cross + ATR risk management. SL = 2×ATR, TP ladder 1R/2R/3R. Time-stop = 25 bars.<br>
@@ -484,16 +507,18 @@ function barsToText(b){const mins=Math.round(b*MPB[tf]);
   return (d/30).toFixed(1)+' months';}
 function defaultHoldBars(){return tf==='1d'?15:tf==='3d'?8:tf==='1w'?8:tf==='1M'?6:20;}
 
+function setText(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
+function setCol(id,c){const e=document.getElementById(id);if(e)e.style.color=c;}
 function renderSignal(){
   const n=klines.length,i=n-1;
-  document.getElementById('kvRsi').textContent=ind.r[i].toFixed(1);
+  setText('kvRsi',ind.r[i].toFixed(1));
   const up=ind.eF[i]>ind.eS[i];
-  document.getElementById('kvTrend').textContent=up?'UPTREND ▲':'DOWNTREND ▼';
-  document.getElementById('kvTrend').style.color=up?'var(--green)':'var(--red)';
+  setText('kvTrend',up?'UPTREND ▲':'DOWNTREND ▼');
+  setCol('kvTrend',up?'var(--green)':'var(--red)');
   const stUp=ind.stDir[i]===1;
-  document.getElementById('kvST').textContent=stUp?'BULLISH ▲':'BEARISH ▼';
-  document.getElementById('kvST').style.color=stUp?'var(--green)':'var(--red)';
-  document.getElementById('kvAtr').textContent=fmt(ind.a[i]);
+  setText('kvST',stUp?'BULLISH ▲':'BEARISH ▼');
+  setCol('kvST',stUp?'var(--green)':'var(--red)');
+  setText('kvAtr',fmt(ind.a[i]));
   document.getElementById('chartCoin').textContent=sym+' · '+tf;
   activeSignal=findLatestSignal();
   const card=document.getElementById('signalCard');
@@ -502,10 +527,10 @@ function renderSignal(){
   if(!activeSignal){card.className='signal-card sig-wait';st.textContent='NO TRADE';
     ss.textContent='No valid setup — patience is a position. Never force a trade.';
     det.style.display='none';
-    document.getElementById('kvType').textContent='—';
-    document.getElementById('kvHold').textContent='—';
-    document.getElementById('kvAge').textContent='—';
-    document.getElementById('kvPnl').textContent='—';}
+    setText('kvType','—');
+    setText('kvHold','—');
+    setText('kvAge','—');
+    setText('kvPnl','—');}
   else{
     const s=activeSignal,age=n-1-s.i;
     card.className='signal-card '+(s.dir===1?'sig-long':'sig-short');
@@ -522,9 +547,9 @@ function renderSignal(){
     document.getElementById('lvTP1').textContent=fmt(s.tp1);
     document.getElementById('lvTP2').textContent=fmt(s.tp2);
     document.getElementById('lvTP3').textContent=fmt(s.tp3);
-    document.getElementById('kvType').textContent=s.dir===1?'LONG (buy)':'SHORT (sell)';
-    document.getElementById('kvHold').textContent='~'+barsToText(avgHoldBars||defaultHoldBars());
-    document.getElementById('kvAge').textContent=age===0?'just now':age+' bars ago';
+    setText('kvType',s.dir===1?'LONG (buy)':'SHORT (sell)');
+    setText('kvHold','~'+barsToText(avgHoldBars||defaultHoldBars()));
+    setText('kvAge',age===0?'just now':age+' bars ago');
     const pnl=(klines[n-1].c-s.entry)/s.entry*s.dir;
     const pe=document.getElementById('kvPnl');
     pe.textContent=(pnl>=0?'+':'')+(pnl*100).toFixed(2)+'%';
@@ -569,7 +594,7 @@ function runBacktestUI(){
   set('btAvgW',(wins.reduce((s,t)=>s+t.pnl,0)/wins.length*100).toFixed(2)+'%','v pos');
   set('btAvgL',(trades.filter(t=>!t.win).reduce((s,t)=>s+t.pnl,0)/(trades.length-wins.length)*100).toFixed(2)+'%','v neg');
   set('btHold',barsToText(avgHoldBars),'v');
-  document.getElementById('kvHold').textContent='~'+barsToText(avgHoldBars);
+  setText('kvHold','~'+barsToText(avgHoldBars));
   drawEquity(eqArr,dd);
   const log=document.getElementById('tradeLog');log.innerHTML='';
   trades.slice(-30).reverse().forEach(t=>{
@@ -825,7 +850,7 @@ async function loadAreaChart(){
     let pts=raw.map(k=>({t:k[0],c:+k[4]}));
     if(areaPeriod==='YTD'){const y=new Date().getUTCFullYear();pts=pts.filter(p=>new Date(p.t).getUTCFullYear()===y);}
     if(pts.length<2)return;
-    drawArea(pts);
+    drawArea(document.getElementById('areaChart'),pts,areaPeriod);
     const first=pts[0].c,last=pts[pts.length-1].c;
     const chg=(last-first)/first*100;
     const el=document.getElementById('areaChg');
@@ -834,8 +859,8 @@ async function loadAreaChart(){
     document.getElementById('areaPrice').textContent='$'+fmt(last);
     document.getElementById('areaName').textContent=sym.replace('USDT','')+' Price ('+sym.replace('USDT','')+')';
   }catch(e){}}
-function drawArea(pts){
-  const cv=document.getElementById('areaChart');if(!cv)return;
+function drawArea(cv,pts,period){
+  if(!cv)return;
   const dpr=window.devicePixelRatio||1;
   const W=cv.clientWidth,H=cv.clientHeight;
   cv.width=W*dpr;cv.height=H*dpr;
@@ -851,7 +876,7 @@ function drawArea(pts){
     ctx.beginPath();ctx.moveTo(8,gy);ctx.lineTo(W-padR,gy);ctx.stroke();
     ctx.fillText(v>=1000?(v/1000).toFixed(2)+'K':v.toFixed(2),W-padR+6,gy+3);}
   ctx.fillStyle='#5e6673';
-  const f0=areaPeriod==='1D'?{hour:'2-digit',minute:'2-digit'}:{month:'short',day:'numeric'};
+  const f0=period==='1D'?{hour:'2-digit',minute:'2-digit'}:{month:'short',day:'numeric'};
   ctx.fillText(new Date(pts[0].t).toLocaleString('en-GB',f0),8,H-6);
   ctx.fillText(new Date(pts[pts.length-1].t).toLocaleString('en-GB',f0),W-padR-64,H-6);
   ctx.strokeStyle='#848e9c';ctx.setLineDash([3,3]);
@@ -924,7 +949,7 @@ function sparkline(cv,closes,up){
   ctx.strokeStyle=up?'#16c784':'#ea3943';ctx.lineWidth=1.5;ctx.stroke();}
 function rowHtml(c){
   const tag=c.name||'';
-  return `<div style="display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid var(--border)">
+  return `<div onclick="openCoinModal('${c.sym}')" style="display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid var(--border);cursor:pointer">
   <div style="flex:1;min-width:0"><div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.sym.replace('USDT','')} ${tag?`<span style="color:var(--muted);font-weight:400;font-size:10px">${tag}</span>`:''}</div>
   <div style="color:var(--muted);font-size:10px">${c.sym.replace('USDT','')}/USDT</div></div>
   <div style="font-family:var(--mono);text-align:right"><div>$${fmt(c.price)}</div>
@@ -940,6 +965,7 @@ async function loadMarketPanels(force){
     const all=await r.json();
     const flt=t=>t.symbol.endsWith('USDT')&&!/(UP|DOWN|BULL|BEAR)/.test(t.symbol)&&+t.lastPrice>0;
     const usdt=all.filter(flt).map(t=>({sym:t.symbol,price:+t.lastPrice,chg:+t.priceChangePercent,vol:+t.quoteVolume}));
+    window._tickers=usdt;
     renderList('gainersList',[...usdt].sort((a,b)=>b.chg-a.chg).slice(0,5));
     renderList('losersList',[...usdt].sort((a,b)=>a.chg-b.chg).slice(0,5));
     // newest listings = shortest candle history among top-30 by volume
@@ -956,6 +982,56 @@ async function loadMarketPanels(force){
       try{const closes=await fetchSpark(cv.dataset.sym);
         sparkline(cv,closes,closes[closes.length-1]>=closes[0]);}catch(e){}});
   }catch(e){console.error('market panels',e);}}
+
+/* ================= COIN DETAIL MODAL ================= */
+let modalSym=null,modalPeriod='1D';
+const CG_IDS={BTC:'bitcoin',ETH:'ethereum',SOL:'solana',XRP:'ripple',ADA:'cardano',DOGE:'dogecoin',LINK:'chainlink',AVAX:'avalanche-2',TRX:'tron',DOT:'polkadot',MATIC:'matic-network',LTC:'litecoin',BCH:'bitcoin-cash',UNI:'uniswap',ATOM:'cosmos',NEAR:'near',INJ:'injective-protocol',SUI:'sui',ARB:'arbitrum',OP:'optimism'};
+function openCoinModal(sym2){modalSym=sym2;modalPeriod='1D';
+  document.querySelectorAll('.m-tab').forEach(x=>x.classList.toggle('on',x.dataset.p==='1D'));
+  document.getElementById('coinModal').style.display='block';loadModal();}
+function closeCoinModal(){document.getElementById('coinModal').style.display='none';}
+document.querySelectorAll('.m-tab').forEach(b=>b.addEventListener('click',e=>{
+  document.querySelectorAll('.m-tab').forEach(x=>x.classList.remove('on'));
+  e.target.classList.add('on');modalPeriod=e.target.dataset.p;loadModalChart();}));
+async function loadModal(){
+  const s=modalSym;const base=s.replace('USDT','');
+  document.getElementById('mSym').textContent=base;
+  document.getElementById('mName').textContent=base+' Price ('+base+')';
+  let tick=null;
+  try{const r=await fetch(`${API}/ticker/24hr?symbol=${s}`);tick=await r.json();
+    document.getElementById('mPrice').textContent='$'+fmt(+tick.lastPrice);
+    const chg=+tick.priceChangePercent;const el=document.getElementById('mChg');
+    el.textContent=(chg>=0?'+':'')+chg.toFixed(2)+'% in the past 24 hrs';
+    el.style.color=chg>=0?'var(--green)':'var(--red)';
+  }catch(e){}
+  // stats
+  const stats=[];
+  const arr=window._tickers||[];
+  const rank=arr.findIndex(c=>c.sym===s);
+  stats.push(['Popularity',rank>=0?'#'+(rank+1):'—']);
+  const cg=CG_IDS[base];
+  let mcap='—';
+  if(cg){try{const r=await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cg}&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true`);
+    const d=await r.json();if(d[cg]&&d[cg].usd_market_cap)mcap='$'+(d[cg].usd_market_cap>=1e9?(d[cg].usd_market_cap/1e9).toFixed(2)+'B':(d[cg].usd_market_cap/1e6).toFixed(1)+'M');}catch(e){}}
+  stats.push(['Market Cap',mcap]);
+  stats.push(['Volume (24hours)',tick?'$'+(+tick.quoteVolume>=1e9?(+tick.quoteVolume/1e9).toFixed(2)+'B':(+tick.quoteVolume/1e6).toFixed(1)+'M'):'—']);
+  stats.push(['24h High',tick?fmt(+tick.highPrice):'—']);
+  stats.push(['24h Low',tick?fmt(+tick.lowPrice):'—']);
+  stats.push(['24h Weighted Avg',tick?fmt(+tick.weightedAvgPrice):'—']);
+  document.getElementById('mStats').innerHTML=stats.map(([k,v])=>`<div class="stat"><div class="v" style="font-size:15px">${v}</div><div class="k">${k}</div></div>`).join('');
+  document.getElementById('mStatsTitle').textContent=base+' Market Stats in USD';
+  loadModalChart();}
+async function loadModalChart(){
+  const cfg=AREA_CFG[modalPeriod];if(!cfg||!modalSym)return;
+  try{
+    const r=await fetch(`${API}/klines?symbol=${modalSym}&interval=${cfg[0]}&limit=${cfg[1]}`);
+    const raw=await r.json();
+    if(!Array.isArray(raw))return;
+    let pts=raw.map(k=>({t:k[0],c:+k[4]}));
+    if(modalPeriod==='YTD'){const y=new Date().getUTCFullYear();pts=pts.filter(p=>new Date(p.t).getUTCFullYear()===y);}
+    drawArea(document.getElementById('mAreaChart'),pts,modalPeriod);
+    document.getElementById('mUpdated').textContent='Page last updated: '+new Date().toLocaleString('en-US')+' (local)';
+  }catch(e){}}
 
 /* ================= BOOT ================= */
 initChart();loadCoinList().then(()=>{connectWS();loadAll();loadDbSignals();initConverter();loadAreaChart();loadSentiment();loadMarketPanels();});
