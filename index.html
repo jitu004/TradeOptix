@@ -122,11 +122,8 @@ select:focus{border-color:var(--yellow)}
       <div class="kv"><span class="k">ATR (14)</span><span class="v" id="kvAtr">—</span></div>
       <button class="btn btn-yellow" id="btnTrack">🔔 I Took This Trade — Arm SL Guard</button>
       <button class="btn btn-gray" id="btnNotify">🔕 Enable Browser Notifications</button>
-      <div class="note" style="margin-top:12px">
-        <b style="color:var(--yellow)">TP Scaling Plan:</b> Close 50% at TP1, 30% at TP2, 20% at TP3. Move SL to breakeven after TP1 hits.
-      </div>
       <div class="note">
-        <b style="color:var(--yellow)">SL Guard:</b> Once armed, price is tracked live. If price comes within <b>0.5×ATR</b> of your stop loss, you get a warning + sound alert <b>before</b> the SL is hit.
+        <b style="color:var(--yellow)">SL Guard:</b> Arm it after entering a trade — you will be warned <b>before</b> the stop loss is hit.
       </div>
     </div>
 
@@ -154,7 +151,15 @@ select:focus{border-color:var(--yellow)}
   <!-- CENTER: CHART -->
   <div class="panel">
     <h3>Real-Time Chart — Binance <span id="chartCoin" style="color:var(--yellow)"></span> <span id="wsStatus" style="float:right;color:var(--green)">● LIVE</span></h3>
-    <div id="chart"></div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <button class="btn btn-gray" id="btnDraw" style="width:auto;margin:0;padding:6px 14px;font-size:12px">📈 Draw Trend Line</button>
+      <button class="btn btn-gray" id="btnClearLines" style="width:auto;margin:0;padding:6px 14px;font-size:12px">🗑️ Clear Lines</button>
+      <span id="drawHint" style="color:var(--muted);font-size:12px;align-self:center"></span>
+    </div>
+    <div style="position:relative">
+      <div id="chart"></div>
+      <canvas id="drawCanvas" style="position:absolute;top:0;left:0;pointer-events:none;z-index:10"></canvas>
+    </div>
     <div class="section-title">Equity Curve (Backtest)</div>
     <canvas id="equityChart"></canvas>
   </div>
@@ -468,7 +473,7 @@ async function loadAll(){
   try{
     klines=await fetchKlinesPaginated();
     if(klines.length<100)throw new Error('insufficient data');
-    computeInd();renderVerified();renderSignal();updateChart();
+    computeInd();loadTrendLines();renderVerified();renderSignal();updateChart();
   }catch(e){
     document.getElementById('sigSub').textContent='❌ Could not load Binance data — check internet connection and refresh the page.';
     console.error(e);}}
@@ -518,7 +523,11 @@ document.addEventListener('keydown',e=>{
 
 /* ================= INSFORGE DB SYNC ================= */
 let dbTradeSaved=false;
-function dbConfigured(){return window.INSFORGE_URL && !window.INSFORGE_URL.includes('YOUR-PROJECT');}
+/* Built-in fallback config — works even if db_client.js is missing/placeholder */
+if(!window.INSFORGE_URL||String(window.INSFORGE_URL).indexOf('YOUR-PROJECT')>-1){
+  window.INSFORGE_URL='https://r3pjdfkc.insforge.site';
+  window.INSFORGE_ANON_KEY='anon_d4e349cf0f19d19a9a53315e4b667de23297b526c873fe3c4702b22792724c8c';}
+function dbConfigured(){return window.INSFORGE_URL && window.INSFORGE_URL.indexOf('YOUR-PROJECT')===-1;}
 async function loadDbSignals(){
   const st=document.getElementById('dbStatus'),list=document.getElementById('dbSignals');
   if(!dbConfigured()){st.innerHTML='⚠️ DB not configured — add your InsForge URL + Anon Key in <b>backend/db_client.js</b>.';return;}
@@ -549,6 +558,55 @@ checkSLGuard=function(price){
     if(warnLevel===2)saveAlertToDb('SL_HIT',price,`Stop loss hit — ${sym}`);}
   if(tracking&&activeSignal)saveTrackedTradeToDb();};
 document.getElementById('btnTrack').addEventListener('click',()=>{dbTradeSaved=false;});
+
+/* ================= TREND LINE DRAWING ================= */
+let drawMode=false,pendingPoint=null,trendLines=[];
+function drawCv(){return document.getElementById('drawCanvas');}
+function chartWrap(){return document.getElementById('chart').parentElement;}
+function loadTrendLines(){try{trendLines=JSON.parse(localStorage.getItem('trendlines_'+sym)||'[]');}catch(e){trendLines=[];}}
+function saveTrendLines(){try{localStorage.setItem('trendlines_'+sym,JSON.stringify(trendLines));}catch(e){}}
+function redrawLines(){
+  const cv=drawCv();if(!cv||!chart||!candleSeries)return;
+  const dpr=window.devicePixelRatio||1;
+  const W=chartWrap().clientWidth||1,H=chartWrap().clientHeight||1;
+  if(cv.width!==W*dpr){cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';}
+  const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+  const ts=chart.timeScale();
+  const drawLine=(a,b,color,width)=>{const x1=ts.timeToCoordinate(a.t),y1=candleSeries.priceToCoordinate(a.p);
+    const x2=ts.timeToCoordinate(b.t),y2=candleSeries.priceToCoordinate(b.p);
+    if(x1==null||x2==null||y1==null||y2==null)return;
+    ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+    ctx.fillStyle=color;ctx.beginPath();ctx.arc(x1,y1,3,0,7);ctx.fill();ctx.beginPath();ctx.arc(x2,y2,3,0,7);ctx.fill();};
+  trendLines.forEach(l=>drawLine(l.a,l.b,'#f0b90b',2));
+  if(pendingPoint){const x=ts.timeToCoordinate(pendingPoint.t),y=candleSeries.priceToCoordinate(pendingPoint.p);
+    if(x!=null&&y!=null){ctx.fillStyle='#f0b90b';ctx.beginPath();ctx.arc(x,y,4,0,7);ctx.fill();}}}
+function toggleDrawMode(){
+  drawMode=!drawMode;pendingPoint=null;
+  const btn=document.getElementById('btnDraw'),hint=document.getElementById('drawHint');
+  btn.style.borderColor=drawMode?'var(--yellow)':'';btn.style.color=drawMode?'var(--yellow)':'';
+  hint.textContent=drawMode?'Click 2 points on the chart to draw a line':'';
+  chartWrap().style.cursor=drawMode?'crosshair':'';
+  redrawLines();}
+chartWrap().addEventListener('click',e=>{
+  if(!drawMode)return;
+  const r=chartWrap().getBoundingClientRect();
+  const t=chart.timeScale().coordinateToTime(e.clientX-r.left);
+  const p=candleSeries.coordinateToPrice(e.clientY-r.top);
+  if(t==null||p==null)return;
+  if(!pendingPoint){pendingPoint={t,p};}
+  else{trendLines.push({a:pendingPoint,b:{t,p}});pendingPoint=null;saveTrendLines();}
+  redrawLines();});
+document.getElementById('btnDraw').addEventListener('click',toggleDrawMode);
+document.getElementById('btnClearLines').addEventListener('click',()=>{trendLines=[];pendingPoint=null;saveTrendLines();redrawLines();});
+
+/* Auto-enable browser notifications on first click */
+document.addEventListener('click',function autoNotify(){
+  if('Notification'in window&&Notification.permission==='default'){
+    Notification.requestPermission().then(p=>{
+      const b=document.getElementById('btnNotify');
+      if(p==='granted'){b.textContent='✅ Notifications ON';notify('TradeOptix Ready','SL alerts are now enabled.');}
+      else if(p==='denied'){b.textContent='❌ Notifications Blocked';}});}
+},{once:true});
 
 initChart();connectWS();loadAll();loadDbSignals();
 </script>
