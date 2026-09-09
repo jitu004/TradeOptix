@@ -124,6 +124,7 @@ select:focus,input:focus{border-color:var(--yellow)}
           <div class="sig-line"><span class="lbl">SL after TP1:</span><b style="color:var(--blue)">Move to breakeven</b></div>
           <div class="sig-sec en">Entry Targets:</div>
           <div class="sig-target en">1) <span id="lvEntry">—</span></div>
+          <div style="font-size:11px;margin:3px 0 0 13px;color:var(--muted)">Zone: <span id="lvZone" style="color:var(--blue);font-family:var(--mono);font-weight:700">—</span> · <span id="lvZoneHint">buy anywhere in this range</span></div>
           <div class="sig-sec tp">Take-Profit Targets:</div>
           <div class="sig-target tp">1) <span id="lvTP1">—</span></div>
           <div class="sig-target tp">2) <span id="lvTP2">—</span></div>
@@ -319,7 +320,8 @@ function computeInd(){const c=klines.map(k=>k.c),h=klines.map(k=>k.h),l=klines.m
 function buildSignal(dir,i,atrVal){
   const entry=ind.c[ind.c.length-1];
   const risk=CFG.slAtr*atrVal, m=CFG.modes[mode];
-  const s={dir,i,entry,atr:atrVal,risk,time:klines[i].t};
+  const s={dir,i,entry,atr:atrVal,risk,time:klines[i].t,
+    zoneLo:entry-0.25*atrVal,zoneHi:entry+0.25*atrVal};
   if(dir===1){s.sl=entry-risk;s.tp1=entry+m.tps[0]*risk;s.tp2=entry+m.tps[1]*risk;s.tp3=entry+m.tps[2]*risk;}
   else{s.sl=entry+risk;s.tp1=entry-m.tps[0]*risk;s.tp2=entry-m.tps[1]*risk;s.tp3=entry-m.tps[2]*risk;}
   return s;}
@@ -454,6 +456,8 @@ function renderSignal(){
     t2.style.color=s.dir===1?'var(--green)':'var(--red)';
     document.getElementById('sigLev').textContent='Cross (10X)';
     document.getElementById('lvEntry').textContent=fmt(s.entry);
+    setText('lvZone',fmt(s.zoneLo)+' — '+fmt(s.zoneHi));
+    setText('lvZoneHint',s.dir===1?'buy anywhere in this range':'sell anywhere in this range');
     document.getElementById('lvSL').textContent=fmt(s.sl);
     document.getElementById('lvTP1').textContent=fmt(s.tp1);
     document.getElementById('lvTP2').textContent=fmt(s.tp2);
