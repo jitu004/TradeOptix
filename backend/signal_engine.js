@@ -1,6 +1,6 @@
 // TradeOptix — Signal Engine v2 (Confluence) — InsForge Edge Function (Deno/TS)
-// Attach a schedule (cron every 30 min) to run scans automatically.
-// Backtest (5y, fees incl): BTC 57.1% win PF 2.24 · ETH 61.5% PF 2.50 · LINK 53.3% PF 1.86
+// Attach schedule (cron every 30 min). DB via InsForge SQL API.
+// Backtest (5y, fees incl): BTC 57.1%/PF 2.24 · ETH 61.5%/PF 2.50 · LINK 53.3%/PF 1.86
 // LONG : EMA20>EMA50>EMA200 + Supertrend bull + price>VWAP + RSI cross >70
 // SHORT: EMA20<EMA50<EMA200 + Supertrend bear + price<VWAP + RSI cross <30
 // SL = 2xATR · TP ladder 1R/2R/3R
@@ -8,8 +8,21 @@
 const BINANCE = "https://data-api.binance.vision/api/v3";
 const COINS = ["BTCUSDT", "ETHUSDT", "LINKUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "SOLUSDT"];
 const RSI_BUY = 70, RSI_SELL = 30, SL_ATR = 2.0, RR = 3.0;
-const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.insforge.dev";
+const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";
 const KEY = Deno.env.get("INSFORGE_SERVICE_KEY") ?? "";
+
+function esc(v: string): string { return v.replace(/'/g, "''"); }
+
+async function runSql(sql: string): Promise<any[]> {
+  const r = await fetch(`${BASE}/api/database/advance/rawsql`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${KEY}` },
+    body: JSON.stringify({ query: sql }),
+  });
+  if (!r.ok) throw new Error(`SQL API ${r.status}`);
+  const raw = await r.json();
+  return raw.rows ?? raw.data ?? [];
+}
 
 // ---------- indicators ----------
 function ema(v: number[], n: number): number[] {
@@ -84,7 +97,7 @@ function detect(kl: any[]) {
   const rs = rsi(closes), at = atr(kl);
   const { st, dir } = supertrend(kl);
   const vw = vwap(kl);
-  const i = kl.length - 2; // last CLOSED candle
+  const i = kl.length - 2;
   const entry = closes[closes.length - 1], v = vw[i];
   if (v === null) return null;
   if (eF[i] > eS[i] && eS[i] > eL[i] && st[i] !== null && dir[i] === 1
@@ -100,24 +113,6 @@ function detect(kl: any[]) {
   return null;
 }
 
-// ---------- DB ----------
-async function dbInsert(row: any): Promise<boolean> {
-  const r = await fetch(`${BASE}/rest/v1/signals`, {
-    method: "POST",
-    headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" },
-    body: JSON.stringify(row),
-  });
-  return r.ok;
-}
-async function dbRecent(sym: string): Promise<boolean> {
-  const r = await fetch(`${BASE}/rest/v1/signals?symbol=eq.${sym}&signal_time=gte.now()-interval'24 hours'`, {
-    headers: { apikey: KEY, Authorization: `Bearer ${KEY}` },
-  });
-  if (!r.ok) return false;
-  const rows = await r.json();
-  return Array.isArray(rows) && rows.length > 0;
-}
-
 // ---------- main ----------
 export default async function handler(_req: Request, _ctx: unknown): Promise<Response> {
   const logs: string[] = [];
@@ -126,13 +121,15 @@ export default async function handler(_req: Request, _ctx: unknown): Promise<Res
       const kl = await fetchKlines(sym);
       const sig = detect(kl);
       if (!sig) { logs.push(`-- ${sym}: no setup`); continue; }
-      if (await dbRecent(sym)) { logs.push(`-- ${sym}: already signalled (24h)`); continue; }
-      const ok = await dbInsert({
-        symbol: sym, timeframe: "1d", direction: sig.dir,
-        entry_price: sig.entry, stop_loss: sig.sl, take_profit: sig.tp3,
-        atr: sig.atr, rr_ratio: RR, status: "ACTIVE",
-      });
-      logs.push(`${ok ? "OK" : "FAIL"} ${sym} ${sig.dir === 1 ? "LONG" : "SHORT"} @ ${sig.entry.toFixed(4)} SL ${sig.sl.toFixed(4)} TP ${sig.tp3.toFixed(4)}`);
+      const recent = await runSql(
+        `SELECT 1 FROM signals WHERE symbol='${esc(sym)}' AND signal_time >= now() - interval '24 hours' LIMIT 1`
+      );
+      if (recent.length > 0) { logs.push(`-- ${sym}: already signalled (24h)`); continue; }
+      await runSql(
+        `INSERT INTO signals (symbol,timeframe,direction,entry_price,stop_loss,take_profit,atr,rr_ratio,status) VALUES ` +
+        `('${esc(sym)}','1d',${sig.dir},${sig.entry},${sig.sl},${sig.tp3},${sig.atr},${RR},'ACTIVE')`
+      );
+      logs.push(`OK ${sym} ${sig.dir === 1 ? "LONG" : "SHORT"} @ ${sig.entry.toFixed(4)} SL ${sig.sl.toFixed(4)} TP ${sig.tp3.toFixed(4)}`);
     } catch (e) { logs.push(`WARN ${sym}: ${String(e)}`); }
   }
   return new Response(JSON.stringify({ scanned: COINS.length, at: new Date().toISOString(), logs }, null, 2), {
