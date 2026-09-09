@@ -131,13 +131,21 @@ select:focus,input:focus{border-color:var(--yellow)}
         <div id="chkTrend" style="font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border)">—</div>
         <div id="chkST" style="font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border)">—</div>
         <div id="chkVWAP" style="font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border)">—</div>
-        <div id="chkRSI" style="font-size:12px;padding:4px 0">—</div>
+        <div id="chkRSI" style="font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border)">—</div>
+        <div id="chkVol" style="font-size:12px;padding:4px 0">—</div>
         <div style="font-size:10px;color:var(--muted);margin-top:6px">Live monitor — watch the checklist turn green as the setup forms. All 4 green + LONG/SHORT card = TAKE THE TRADE. Any red = WAIT.</div>
       </div>
     </div>
 
     <div class="panel" style="margin-top:14px">
       <h3>5-Year Verified Backtest (1D)</h3>
+      <select id="vbCoin" style="width:100%;margin-bottom:8px"></select>
+      <select id="btTf" style="width:100%;margin-bottom:10px">
+        <option value="1d" selected>1D — Daily (~5.5 years data)</option>
+        <option value="4h">4H — 4 Hour (~11 months)</option>
+        <option value="1h">1H — 1 Hour (~6 weeks)</option>
+        <option value="15m">15m — 15 Minute (~10 days only)</option>
+      </select>
       <div class="stat-grid">
         <div class="stat"><div class="v" id="vbWin">—</div><div class="k">Win Rate</div></div>
         <div class="stat"><div class="v" id="vbPf">—</div><div class="k">Profit Factor</div></div>
@@ -249,10 +257,13 @@ const CFG={emaF:20,emaS:50,emaL:200,rsiN:14,rsiBuy:70,rsiSell:30,atrN:14,slAtr:2
   warnAtr:0.5};
 const MPB={'1m':1,'15m':15,'30m':30,'1h':60,'2h':120,'4h':240,'6h':360,'12h':720,'1d':1440,'3d':4320,'1w':10080,'1M':43200};
 const FEE_RT=0.002;
-const VERIFIED={'BTCUSDT':{win:46.7,pf:1.34,ret:24.4,n:30,hold:14.9,dd:-26.9},
-  'ETHUSDT':{win:61.5,pf:2.31,ret:170.8,n:26,hold:17.9,dd:-22.2},
-  'SOLUSDT':{win:45.2,pf:1.22,ret:-3.5,n:31,hold:14.3,dd:-70.5},
-  'LINKUSDT':{win:41.4,pf:1.35,ret:22.1,n:29,hold:13.6,dd:-59.9}};
+const VERIFIED={'BTCUSDT':{win:64.7,pf:3.15,ret:95.8,n:17,hold:15.8,dd:-18.3},
+  'ETHUSDT':{win:61.5,pf:2.55,ret:82.8,n:13,hold:18.2,dd:-31.3},
+  'SOLUSDT':{win:50.0,pf:1.34,ret:8.3,n:14,hold:14.6,dd:-38.5},
+  'LINKUSDT':{win:55.6,pf:1.73,ret:28.0,n:9,hold:12.4,dd:-33.5},
+  'XRPUSDT':{win:45.5,pf:1.72,ret:33.7,n:11,hold:10.5,dd:-35.5},
+  'DOGEUSDT':{win:45.5,pf:1.29,ret:2.9,n:11,hold:12.1,dd:-36.9},
+  'ADAUSDT':{win:35.7,pf:1.34,ret:12.4,n:14,hold:13.0,dd:-35.5}};
 const FALLBACK_COINS=['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','LINKUSDT','AVAXUSDT','TRXUSDT','DOTUSDT','MATICUSDT','LTCUSDT','BCHUSDT','UNIUSDT','ATOMUSDT','NEARUSDT','INJUSDT','SUIUSDT','ARBUSDT','OPUSDT'];
 
 /* ================= STATE ================= */
@@ -287,19 +298,20 @@ function supertrend(k,period=10,mult=3.0){
     dir[i]=(cur===fub)?-1:1;
     st[i]=cur;pst=cur;pfub=fub;pflb=flb;}
   return{st,dir};}
-function computeInd(){const c=klines.map(k=>k.c),h=klines.map(k=>k.h),l=klines.map(k=>k.l);
+function computeInd(data){const c=data.map(k=>k.c),h=data.map(k=>k.h),l=data.map(k=>k.l);
   ind={eF:emaArr(c,CFG.emaF),eS:emaArr(c,CFG.emaS),eL:emaArr(c,CFG.emaL),
-    r:rsiArr(c,CFG.rsiN),a:atrArr(klines,CFG.atrN)};
+    r:rsiArr(c,CFG.rsiN),a:atrArr(data,CFG.atrN)};
   ind.c=c;ind.h=h;ind.l=l;
-  // VWAP (daily reset, UTC)
+  const volMA=new Array(data.length).fill(null);let vs=0;
+  for(let i=0;i<data.length;i++){vs+=data[i].v;if(i>=20)vs-=data[i-20].v;volMA[i]=i>=19?vs/20:null;}
+  ind.volMA=volMA;
   const vwap=new Array(c.length).fill(null);let cumPV=0,cumV=0,lastDay=-1;
-  for(let i=0;i<c.length;i++){const day=new Date(klines[i].t).getUTCDay()+new Date(klines[i].t).getUTCMonth()*31;
+  for(let i=0;i<c.length;i++){const day=new Date(data[i].t).getUTCDay()+new Date(data[i].t).getUTCMonth()*31;
     if(day!==lastDay){cumPV=0;cumV=0;lastDay=day;}
-    cumPV+=((klines[i].h+klines[i].l+c[i])/3)*klines[i].v;cumV+=klines[i].v;
+    cumPV+=((h[i]+l[i]+c[i])/3)*data[i].v;cumV+=data[i].v;
     vwap[i]=cumV>0?cumPV/cumV:null;}
   ind.vwap=vwap;
-  // Supertrend
-  const stA=supertrend(klines,CFG.stPeriod,CFG.stMult);
+  const stA=supertrend(data,CFG.stPeriod,CFG.stMult);
   ind.st=stA.st;ind.stDir=stA.dir;}
 
 /* ================= SIGNAL ENGINE ================= */
@@ -314,18 +326,19 @@ function buildSignal(dir,i,atrVal){
 
 function findLatestSignal(){const n=klines.length,lb=Math.max(201,n-15);
   for(let i=n-2;i>=lb;i--){
-    const v=ind.vwap[i];
-    if(ind.eF[i]>ind.eS[i]&&ind.eS[i]>ind.eL[i]&&ind.st[i]!=null&&ind.stDir[i]===1
+    const v=ind.vwap[i],vm=ind.volMA[i];
+    const volOk=vm!=null&&klines[i].v>1.2*vm;
+    if(volOk&&ind.eF[i]>ind.eS[i]&&ind.eS[i]>ind.eL[i]&&ind.st[i]!=null&&ind.stDir[i]===1
       &&v!=null&&ind.c[i]>v&&ind.r[i-1]<CFG.rsiBuy&&ind.r[i]>=CFG.rsiBuy&&ind.c[i]>ind.eF[i])
       return buildSignal(1,i,ind.a[i]);
-    if(ind.eF[i]<ind.eS[i]&&ind.eS[i]<ind.eL[i]&&ind.st[i]!=null&&ind.stDir[i]===-1
+    if(volOk&&ind.eF[i]<ind.eS[i]&&ind.eS[i]<ind.eL[i]&&ind.st[i]!=null&&ind.stDir[i]===-1
       &&v!=null&&ind.c[i]<v&&ind.r[i-1]>CFG.rsiSell&&ind.r[i]<=CFG.rsiSell&&ind.c[i]<ind.eF[i])
       return buildSignal(-1,i,ind.a[i]);}
   return null;}
 
 function backtest(){const trades=[];let pos=null;const n=klines.length;
   const rr=CFG.modes[mode].rr;
-  for(let i=51;i<n-1;i++){
+  for(let i=201;i<n-1;i++){
     if(pos){pos.bars++;
       const hitSL=pos.dir===1?klines[i].l<=pos.sl:klines[i].h>=pos.sl;
       const hitTP=pos.dir===1?klines[i].h>=pos.tp:klines[i].l<=pos.tp;
@@ -335,11 +348,14 @@ function backtest(){const trades=[];let pos=null;const n=klines.length;
       if(ex!==null){const pnl=(ex-pos.entry)/pos.entry*pos.dir-FEE_RT;
         trades.push({dir:pos.dir,entry:pos.entry,exit:ex,pnl,win:pnl>0,bars:pos.bars,t:klines[pos.i].t});
         pos=null;continue;}}
-    if(!pos){
-      if(ind.eF[i]>ind.eS[i]&&ind.r[i-1]<CFG.rsiBuy&&ind.r[i]>=CFG.rsiBuy&&ind.c[i]>ind.eF[i]){
+    if(!pos){const v=ind.vwap[i],vm=ind.volMA[i];
+      const volOk=vm!=null&&klines[i].v>1.2*vm;
+      if(volOk&&ind.eF[i]>ind.eS[i]&&ind.eS[i]>ind.eL[i]&&ind.st[i]!=null&&ind.stDir[i]===1
+        &&v!=null&&ind.c[i]>v&&ind.r[i-1]<CFG.rsiBuy&&ind.r[i]>=CFG.rsiBuy&&ind.c[i]>ind.eF[i]){
         const e=klines[i+1].o,sl=e-CFG.slAtr*ind.a[i];
         pos={dir:1,i,entry:e,sl,tp:e+CFG.slAtr*rr*ind.a[i],bars:0};}
-      else if(ind.eF[i]<ind.eS[i]&&ind.r[i-1]>CFG.rsiSell&&ind.r[i]<=CFG.rsiSell&&ind.c[i]<ind.eF[i]){
+      else if(volOk&&ind.eF[i]<ind.eS[i]&&ind.eS[i]<ind.eL[i]&&ind.st[i]!=null&&ind.stDir[i]===-1
+        &&v!=null&&ind.c[i]<v&&ind.r[i-1]>CFG.rsiSell&&ind.r[i]<=CFG.rsiSell&&ind.c[i]<ind.eF[i]){
         const e=klines[i+1].o,sl=e+CFG.slAtr*ind.a[i];
         pos={dir:-1,i,entry:e,sl,tp:e-CFG.slAtr*rr*ind.a[i],bars:0};}}}
   return trades;}
@@ -472,11 +488,17 @@ function renderSignal(){
       setChk('chkST',stOk,'Market Momentum');
       setChk('chkVWAP',vOk,'Price Position');
       setChk('chkRSI',rOk,'Entry Trigger (strength '+ind.r[ci].toFixed(0)+'/100)');
+      setChk('chkVol',ind.volMA[ci]!=null&&klines[ci].v>1.2*ind.volMA[ci],'Volume Confirmation');
     }
   }}
 
+let vbSym="BTCUSDT";
+function initVbCoin(){const sel=document.getElementById("vbCoin");if(!sel)return;
+  sel.innerHTML=Object.keys(VERIFIED).map(k=>`<option value="${k}">${k.replace("USDT","")}/USDT</option>`).join("");
+  sel.value=vbSym;
+  sel.addEventListener("change",e=>{vbSym=e.target.value;renderVerified();});}
 function renderVerified(){
-  const v=VERIFIED[sym];
+  const v=VERIFIED[vbSym];
   if(!v){['vbWin','vbPf','vbRet','vbTrades','vbHold','vbDd'].forEach(id=>document.getElementById(id).textContent='—');
     document.getElementById('edgeBadge').textContent='NO DATA';document.getElementById('edgeBadge').className='badge badge-mid';return;}
   document.getElementById('vbWin').textContent=v.win+'%';
@@ -638,7 +660,7 @@ async function loadAll(){
   try{
     klines=await fetchKlinesPaginated();
     if(klines.length<100)throw new Error('insufficient data');
-    computeInd();renderVerified();renderSignal();
+    computeInd(klines);renderVerified();renderSignal();
   }catch(e){
     document.getElementById('sigSub').textContent='❌ Could not load Binance data — check internet and refresh.';
     console.error(e);}}
@@ -647,10 +669,36 @@ document.getElementById('symbolSel').addEventListener('change',e=>{
   sym=e.target.value;tracking=false;warnLevel=0;avgHoldBars=null;
   document.getElementById('alertBanner').style.display='none';
   document.getElementById('btnTrack').textContent='🛡️ Arm SL Guard — I\'m In';
+  if(VERIFIED[sym]){vbSym=sym;const vs=document.getElementById('vbCoin');if(vs)vs.value=sym;}
   connectWS();loadAll();loadSentiment();loadTV();});
-document.getElementById('btnBacktest').addEventListener('click',e=>{
-  e.target.textContent='⏳ Running…';
-  setTimeout(()=>{runBacktestUI();e.target.textContent='⚡ Run Backtest (Live Data)';},50);});
+let btTf='1d';
+async function fetchBT(){
+  const want={'1d':2000,'4h':2000,'1h':1000,'15m':1000}[btTf]||1000;
+  const limit=1000;let endTime=undefined,all=[];
+  while(all.length<want){
+    let url=`${API}/klines?symbol=${sym}&interval=${btTf}&limit=${limit}`;
+    if(endTime)url+=`&endTime=${endTime}`;
+    const r=await fetch(url);const raw=await r.json();
+    if(!Array.isArray(raw)||raw.length===0)break;
+    const batch=raw.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));
+    all=batch.concat(all);endTime=batch[0].t-1;
+    if(raw.length<limit)break;
+    if(btTf!=='1d'&&btTf!=='4h'&&all.length>=1000)break;}
+  return all;}
+async function runBT(){
+  const btn=document.getElementById('btnBacktest');
+  if(btn)btn.textContent='⏳ Running…';
+  const origTf=tf,origKlines=klines,origInd=ind;
+  try{
+    const data=await fetchBT();
+    if(data.length<210)throw new Error('only '+data.length+' candles — need 210+');
+    tf=btTf;klines=data;computeInd(data);
+    runBacktestUI();
+  }catch(e){alert('Backtest error: '+e.message);}
+  finally{tf=origTf;klines=origKlines;ind=origInd;
+    if(btn)btn.textContent='⚡ Run Backtest (Live Data)';}}
+document.getElementById('btnBacktest').addEventListener('click',()=>runBT());
+document.getElementById('btTf').addEventListener('change',e=>{btTf=e.target.value;});
 document.getElementById('btnTrack').addEventListener('click',e=>{
   if(!activeSignal){alert('No active signal — wait for a valid setup.');return;}
   tracking=!tracking;
@@ -678,7 +726,7 @@ setInterval(async()=>{
     const newest=raw[raw.length-1];
     if(newest[0]>lastT||+newest[4]!==klines[klines.length-1].c){
       klines=await fetchKlinesPaginated();
-      computeInd();renderSignal();}
+      computeInd(klines);renderSignal();}
   }catch(e){}},30000);
 document.addEventListener('keydown',e=>{
   if(e.key.toLowerCase()==='t')document.getElementById('btnTrack').click();});
@@ -873,7 +921,7 @@ function loadTV(){
     support_host:'https://www.tradingview.com'});}
 
 /* ================= BOOT ================= */
-loadCoinList().then(()=>{connectWS();loadAll();loadDbSignals();initConverter();loadSentiment();loadMarketPanels();loadTV();});
+initVbCoin();loadCoinList().then(()=>{connectWS();loadAll();loadDbSignals();initConverter();loadSentiment();loadMarketPanels();loadTV();});
 setInterval(loadSentiment,600000);
 setInterval(()=>loadMarketPanels(),300000);
 setInterval(()=>loadFx(),3600000);

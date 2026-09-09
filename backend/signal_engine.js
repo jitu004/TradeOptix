@@ -1,10 +1,10 @@
-// TradeOptix — Signal Engine v3 — InsForge Edge Function (Deno/TS)
+// TradeOptix — Signal Engine v3.1 (volume-confirmed) — InsForge Edge Function (Deno/TS)
 // Scans TOP-25 USDT coins by volume on BOTH 1D and 4H timeframes.
 // Attach schedule: every 30 min (cron "*/30 * * * *").
 //
 // 1D (5y validated, fees incl): BTC 57.1%/PF 2.24 · ETH 61.5%/PF 2.50 · LINK 53.3%/PF 1.86
 // 4H (short-sample): promising but less validated — smaller size recommended.
-// LONG : EMA20>EMA50>EMA200 + Supertrend bull + price>VWAP + RSI cross >70
+// LONG : EMA20>EMA50>EMA200 + Supertrend bull + price>VWAP + RSI cross >70 + volume > 1.2x avg
 // SHORT: EMA20<EMA50<EMA200 + Supertrend bear + price<VWAP + RSI cross <30
 // SL = 2xATR · TP ladder 1R/2R/3R
 
@@ -112,9 +112,12 @@ function detect(kl: any[]) {
   const rs = rsi(closes), at = atr(kl);
   const { st, dir } = supertrend(kl);
   const vw = vwap(kl);
+  // Volume MA(20) confirmation
+  let vs = 0; const volMA = new Array(kl.length).fill(null);
+  for (let j = 0; j < kl.length; j++) { vs += kl[j].v; if (j >= 20) vs -= kl[j - 20].v; volMA[j] = j >= 19 ? vs / 20 : null; }
   const i = kl.length - 2;
   const entry = closes[closes.length - 1], v = vw[i];
-  if (v === null) return null;
+  if (v === null || volMA[i] === null || kl[i].v <= 1.2 * volMA[i]) return null;
   if (eF[i] > eS[i] && eS[i] > eL[i] && st[i] !== null && dir[i] === 1
     && closes[i] > v && rs[i - 1] < RSI_BUY && rs[i] >= RSI_BUY && closes[i] > eF[i]) {
     const sl = entry - SL_ATR * at[i], r = SL_ATR * at[i];
