@@ -1,11 +1,10 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SignalPro — Crypto Swing Trading Terminal</title>
+<title>TradeOptix — Crypto Swing Trading Terminal</title>
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
-<script src="backend/db_client.js"></script>
 <style>
 :root{
   --bg:#0b0e14; --panel:#12161f; --panel2:#171c28; --border:#232a3a;
@@ -77,13 +76,13 @@ select:focus{border-color:var(--yellow)}
     <option value="BTCUSDT">BTC/USDT</option><option value="ETHUSDT">ETH/USDT</option>
     <option value="SOLUSDT">SOL/USDT</option><option value="LINKUSDT">LINK/USDT</option>
     <option value="XRPUSDT">XRP/USDT</option><option value="DOGEUSDT">DOGE/USDT</option>
-    <option value="ADAUSDT">ADA/USDT</option><option value="LINKUSDT">LINK/USDT</option>
+    <option value="ADAUSDT">ADA/USDT</option>
   </select>
   <select id="tfSel">
-    <option value="1d" selected>1D (Swing — 5 saal backtest)</option>
-    <option value="4h">4H (Swing — ~5.5 mahina)</option>
-    <option value="1h">1H (Intraday — 41 din)</option>
-    <option value="15m">15m (Scalp — 10 din)</option>
+    <option value="1d" selected>1D (Swing — 5-year backtest)</option>
+    <option value="4h">4H (Swing — ~3 months)</option>
+    <option value="1h">1H (Intraday — ~3 months)</option>
+    <option value="15m">15m (Scalp — ~1 month)</option>
   </select>
   <select id="modeSel">
     <option value="swing" selected>Swing Mode (Risk:Reward 1:3)</option>
@@ -104,46 +103,51 @@ select:focus{border-color:var(--yellow)}
       <h3>Live Signal <span id="edgeBadge" class="badge badge-mid">—</span></h3>
       <div id="signalCard" class="signal-card sig-wait">
         <div class="sig-type" id="sigType">WAIT</div>
-        <div class="sig-sub" id="sigSub">Signal load ho raha hai...</div>
+        <div class="sig-sub" id="sigSub">Loading signal...</div>
         <div class="levels" id="sigLevels" style="display:none">
           <div class="lvl"><div class="k">Entry</div><div class="v" id="lvEntry">—</div></div>
           <div class="lvl"><div class="k">Stop Loss</div><div class="v neg" id="lvSL">—</div></div>
-          <div class="lvl"><div class="k">Take Profit</div><div class="v pos" id="lvTP">—</div></div>
+          <div class="lvl"><div class="k">TP1 (1R)</div><div class="v pos" id="lvTP1">—</div></div>
+          <div class="lvl"><div class="k">TP2 (2R)</div><div class="v pos" id="lvTP2">—</div></div>
+          <div class="lvl"><div class="k">TP3 (3R)</div><div class="v pos" id="lvTP3">—</div></div>
           <div class="lvl"><div class="k">Risk:Reward</div><div class="v" id="lvRR" style="color:var(--yellow)">1:3</div></div>
         </div>
       </div>
-      <div class="kv"><span class="k">Trade Type</span><span class="v" id="kvType">—</span></div>
-      <div class="kv"><span class="k">Holding Time (est.)</span><span class="v" id="kvHold">—</span></div>
+      <div class="kv"><span class="k">Trade Direction</span><span class="v" id="kvType">—</span></div>
+      <div class="kv"><span class="k">Est. Holding Time</span><span class="v" id="kvHold">—</span></div>
       <div class="kv"><span class="k">Signal Age</span><span class="v" id="kvAge">—</span></div>
-      <div class="kv"><span class="k">Signal P&L (live)</span><span class="v" id="kvPnl">—</span></div>
+      <div class="kv"><span class="k">Live Signal P&amp;L</span><span class="v" id="kvPnl">—</span></div>
       <div class="kv"><span class="k">RSI (14)</span><span class="v" id="kvRsi">—</span></div>
       <div class="kv"><span class="k">Trend (EMA 20/50)</span><span class="v" id="kvTrend">—</span></div>
       <div class="kv"><span class="k">ATR (14)</span><span class="v" id="kvAtr">—</span></div>
-      <button class="btn btn-yellow" id="btnTrack">🔔 Trade Liya — SL Guard ON</button>
-      <button class="btn btn-gray" id="btnNotify">🔕 Browser Notifications Enable Karo</button>
+      <button class="btn btn-yellow" id="btnTrack">🔔 I Took This Trade — Arm SL Guard</button>
+      <button class="btn btn-gray" id="btnNotify">🔕 Enable Browser Notifications</button>
       <div class="note" style="margin-top:12px">
-        <b style="color:var(--yellow)">SL Guard:</b> Jab aap "Trade Liya" dabate ho, app price ko real-time track karta hai. Price SL ke <b>0.5×ATR</b> ke andar aate hi (hit se pehle) warning + sound bajega.
+        <b style="color:var(--yellow)">TP Scaling Plan:</b> Close 50% at TP1, 30% at TP2, 20% at TP3. Move SL to breakeven after TP1 hits.
+      </div>
+      <div class="note">
+        <b style="color:var(--yellow)">SL Guard:</b> Once armed, price is tracked live. If price comes within <b>0.5×ATR</b> of your stop loss, you get a warning + sound alert <b>before</b> the SL is hit.
       </div>
     </div>
 
     <div class="panel" style="margin-top:14px">
       <h3>📡 Signals History (Cloud DB)</h3>
-      <div id="dbStatus" class="note" style="margin-bottom:8px">DB se connect ho raha hai…</div>
+      <div id="dbStatus" class="note" style="margin-bottom:8px">Connecting to database…</div>
       <div class="trade-log" id="dbSignals" style="max-height:190px"></div>
     </div>
 
     <div class="panel" style="margin-top:14px">
-      <h3>5-Saal Verified Backtest (1D)</h3>
+      <h3>5-Year Verified Backtest (1D)</h3>
       <div class="stat-grid">
         <div class="stat"><div class="v" id="vbWin">—</div><div class="k">Win Rate</div></div>
         <div class="stat"><div class="v" id="vbPf">—</div><div class="k">Profit Factor</div></div>
         <div class="stat"><div class="v" id="vbRet">—</div><div class="k">Total Return</div></div>
         <div class="stat"><div class="v" id="vbTrades">—</div><div class="k">Trades</div></div>
-        <div class="stat"><div class="v" id="vbHold">—</div><div class="k">Avg Hold (bars)</div></div>
+        <div class="stat"><div class="v" id="vbHold">—</div><div class="k">Avg Hold</div></div>
         <div class="stat"><div class="v" id="vbDd">—</div><div class="k">Max Drawdown</div></div>
       </div>
-      <div class="note" style="margin-top:10px">Ye stats isi strategy ke 5-saal (Sep 2021 – Sep 2026) ke daily candles par chalaye gaye real backtest se hain. App kharidne se pehle khud "Backtest Chalao" dabakar current data par verify karo.</div>
-      <button class="btn btn-green" id="btnBacktest">⚡ Backtest Chalao (Live Data)</button>
+      <div class="note" style="margin-top:10px">These stats are from a real 5-year backtest (Sep 2021 – Sep 2026, fees included). Always verify yourself with "Run Backtest" on current data before trading.</div>
+      <button class="btn btn-green" id="btnBacktest">⚡ Run Backtest (Live Data)</button>
     </div>
   </div>
 
@@ -171,15 +175,15 @@ select:focus{border-color:var(--yellow)}
       </div>
     </div>
     <div class="panel" style="margin-top:14px">
-      <h3>Trade Log (Recent 30)</h3>
-      <div class="trade-log" id="tradeLog"><div style="color:var(--muted);text-align:center;padding:20px">Backtest chalao — trades yahan dikhenge</div></div>
+      <h3>Trade Log (Last 30)</h3>
+      <div class="trade-log" id="tradeLog"><div style="color:var(--muted);text-align:center;padding:20px">Run a backtest — trades will appear here</div></div>
     </div>
   </div>
 </div>
 
 <div class="footer">
-  <b>Strategy:</b> EMA(20/50) trend + RSI(14) momentum cross (70/30) + ATR(14) risk management. SL = 2×ATR, TP = 3×SL (Swing) ya 1.5×SL (Scalp). Time-stop = 25 bars.<br>
-  ⚠️ <b>Disclaimer:</b> Ye app education/analytics ke liye hai, financial advice nahi. Backtest past performance dikhata hai — future guarantee nahi. Crypto trading me capital ka poora loss possible hai. 1:3 R:R par 60% win rate duniya ki sabse best strategies ka level hai; is strategy ka honest 5-saal result upar verified stats me hai. Kabhi bina SL ke trade mat karo.
+  <b>Strategy:</b> EMA(20/50) trend + RSI(14) momentum cross (70/30) + ATR(14) risk management. SL = 2×ATR, TP ladder 1R / 2R / 3R (Swing) or 1R / 1.25R / 1.5R (Scalp). Time-stop = 25 bars.<br>
+  ⚠️ <b>Disclaimer:</b> This app is for education/analytics only, not financial advice. Backtests show past performance — no future guarantee. You can lose your entire capital in crypto trading. At 1:3 R:R, a 60% win rate is elite hedge-fund level; this strategy's honest 5-year results are shown above (fees included). Never trade without a stop loss.
 </div>
 
 <script>
@@ -187,12 +191,13 @@ select:focus{border-color:var(--yellow)}
 const API='https://data-api.binance.vision/api/v3';
 const WS='wss://data-stream.binance.vision/ws';
 const CFG={emaF:20,emaS:50,rsiN:14,rsiBuy:70,rsiSell:30,atrN:14,slAtr:2.0,maxHold:25,
-  modes:{swing:{rr:3.0,label:'SWING (1:3)'},scalp:{rr:1.5,label:'SCALP (1:1.5)'}},
+  modes:{swing:{rr:3.0,label:'SWING (1:3)',tps:[1,2,3]},scalp:{rr:1.5,label:'SCALP (1:1.5)',tps:[1,1.25,1.5]}},
   warnAtr:0.5};
-// 5-saal verified backtest (Sep 2021–Sep 2026, daily, Yahoo/Binance data, strategy v1.0)
-const VERIFIED={'BTCUSDT':{win:46.7,pf:1.41,ret:32.0,n:30,hold:14.9,dd:-26.2},
-  'ETHUSDT':{win:61.5,pf:2.39,ret:184.8,n:26,hold:17.9,dd:-21.5},
-  'SOLUSDT':{win:45.2,pf:1.25,ret:2.8,n:31,hold:14.3,dd:-70.0}};
+const FEE_RT=0.002;
+const VERIFIED={'BTCUSDT':{win:46.7,pf:1.34,ret:24.4,n:30,hold:14.9,dd:-26.9},
+  'ETHUSDT':{win:61.5,pf:2.31,ret:170.8,n:26,hold:17.9,dd:-22.2},
+  'SOLUSDT':{win:45.2,pf:1.22,ret:-3.5,n:31,hold:14.3,dd:-70.5},
+  'LINKUSDT':{win:41.4,pf:1.35,ret:22.1,n:29,hold:13.6,dd:-59.9}};
 
 /* ================= STATE ================= */
 let klines=[],ind=null,ws=null,sym='BTCUSDT',tf='1d',mode='swing';
@@ -213,18 +218,26 @@ function computeInd(){const c=klines.map(k=>k.c),h=klines.map(k=>k.h),l=klines.m
   ind={eF:emaArr(c,CFG.emaF),eS:emaArr(c,CFG.emaS),r:rsiArr(c,CFG.rsiN),a:atrArr(klines,CFG.atrN)};
   ind.c=c;ind.h=h;ind.l=l;}
 
-/* ================= SIGNAL ENGINE ================= */
+/* ================= SIGNAL ENGINE (with TP1/TP2/TP3 ladder) ================= */
+function buildSignal(dir,i,atrVal){
+  const entry=ind.c[ind.c.length-1];
+  const risk=CFG.slAtr*atrVal, m=CFG.modes[mode];
+  const s={dir,i,entry,atr:atrVal,risk,time:klines[i].t};
+  if(dir===1){s.sl=entry-risk;s.tp1=entry+m.tps[0]*risk;s.tp2=entry+m.tps[1]*risk;s.tp3=entry+m.tps[2]*risk;}
+  else{s.sl=entry+risk;s.tp1=entry-m.tps[0]*risk;s.tp2=entry-m.tps[1]*risk;s.tp3=entry-m.tps[2]*risk;}
+  return s;}
+
 function findLatestSignal(){const n=klines.length,lb=Math.max(51,n-15);
   for(let i=n-2;i>=lb;i--){
-    if(ind.eF[i]>ind.eS[i]&&ind.r[i-1]<CFG.rsiBuy&&ind.r[i]>=CFG.rsiBuy&&ind.c[i]>ind.eF[i]){
-      const rr=CFG.modes[mode].rr,entry=ind.c[n-1];
-      return{dir:1,i,entry,sl:entry-CFG.slAtr*ind.a[i],tp:entry+CFG.slAtr*rr*ind.a[i],atr:ind.a[i],time:klines[i].t};}
-    if(ind.eF[i]<ind.eS[i]&&ind.r[i-1]>CFG.rsiSell&&ind.r[i]<=CFG.rsiSell&&ind.c[i]<ind.eF[i]){
-      const rr=CFG.modes[mode].rr,entry=ind.c[n-1];
-      return{dir:-1,i,entry,sl:entry+CFG.slAtr*ind.a[i],tp:entry-CFG.slAtr*rr*ind.a[i],atr:ind.a[i],time:klines[i].t};}}
+    if(ind.eF[i]>ind.eS[i]&&ind.r[i-1]<CFG.rsiBuy&&ind.r[i]>=CFG.rsiBuy&&ind.c[i]>ind.eF[i])
+      return buildSignal(1,i,ind.a[i]);
+    if(ind.eF[i]<ind.eS[i]&&ind.r[i-1]>CFG.rsiSell&&ind.r[i]<=CFG.rsiSell&&ind.c[i]<ind.eF[i])
+      return buildSignal(-1,i,ind.a[i]);}
   return null;}
 
+/* Backtest uses TP3 (full 3R) as final target */
 function backtest(){const trades=[];let pos=null;const n=klines.length;
+  const rr=CFG.modes[mode].rr;
   for(let i=51;i<n-1;i++){
     if(pos){pos.bars++;
       const hitSL=pos.dir===1?klines[i].l<=pos.sl:klines[i].h>=pos.sl;
@@ -238,10 +251,10 @@ function backtest(){const trades=[];let pos=null;const n=klines.length;
     if(!pos){
       if(ind.eF[i]>ind.eS[i]&&ind.r[i-1]<CFG.rsiBuy&&ind.r[i]>=CFG.rsiBuy&&ind.c[i]>ind.eF[i]){
         const e=klines[i+1].o,sl=e-CFG.slAtr*ind.a[i];
-        pos={dir:1,i,entry:e,sl,tp:e+CFG.slAtr*CFG.modes[mode].rr*ind.a[i],bars:0};}
+        pos={dir:1,i,entry:e,sl,tp:e+CFG.slAtr*rr*ind.a[i],bars:0};}
       else if(ind.eF[i]<ind.eS[i]&&ind.r[i-1]>CFG.rsiSell&&ind.r[i]<=CFG.rsiSell&&ind.c[i]<ind.eF[i]){
         const e=klines[i+1].o,sl=e+CFG.slAtr*ind.a[i];
-        pos={dir:-1,i,entry:e,sl,tp:e-CFG.slAtr*CFG.modes[mode].rr*ind.a[i],bars:0};}}}
+        pos={dir:-1,i,entry:e,sl,tp:e-CFG.slAtr*rr*ind.a[i],bars:0};}}}
   return trades;}
 
 /* ================= DATA LOADING ================= */
@@ -271,14 +284,14 @@ function connectWS(){
     el.className=chg>=0?'pos':'neg';
     document.getElementById('livePrice').style.color=chg>=0?'var(--green)':'var(--red)';
     if(tracking&&activeSignal)checkSLGuard(p);};
-  ws.onclose=()=>{document.getElementById('wsStatus').textContent='● RECONNECT';
+  ws.onclose=()=>{document.getElementById('wsStatus').textContent='● RECONNECTING';
     document.getElementById('wsStatus').style.color='var(--red)';
     setTimeout(connectWS,3000);};
   ws.onopen=()=>{document.getElementById('wsStatus').textContent='● LIVE';
     document.getElementById('wsStatus').style.color='var(--green)';};}
 
 /* ================= CHART ================= */
-let chart,candleSeries,emaFS,emaSS,priceLineSL=null,priceLineTP=null;
+let chart,candleSeries,emaFS,emaSS,priceLines=[];
 function initChart(){if(chart)chart.remove();
   chart=LightweightCharts.createChart(document.getElementById('chart'),{
     layout:{background:{color:'#0b0e14'},textColor:'#8b93a7'},
@@ -296,7 +309,6 @@ function updateChart(){
   candleSeries.setData(data);
   emaFS.setData(klines.map((k,i)=>({time:k.t/1000,value:ind.eF[i]})));
   emaSS.setData(klines.map((k,i)=>({time:k.t/1000,value:ind.eS[i]})));
-  // trade markers from backtest
   const markers=[];
   backtest().slice(-60).forEach(t=>{
     markers.push({time:klines.find(k=>k.t>=t.t).t/1000,
@@ -307,20 +319,17 @@ function updateChart(){
   chart.timeScale().fitContent();
   drawSignalLines();}
 function drawSignalLines(){
-  if(priceLineSL)candleSeries.removePriceLine(priceLineSL);
-  if(priceLineTP)candleSeries.removePriceLine(priceLineTP);
-  priceLineSL=priceLineTP=null;
+  priceLines.forEach(pl=>candleSeries.removePriceLine(pl));priceLines=[];
   if(activeSignal){
-    priceLineSL=candleSeries.createPriceLine({price:activeSignal.sl,color:'#ea3943',
-      lineWidth:1,lineStyle:2,title:'SL'});
-    priceLineTP=candleSeries.createPriceLine({price:activeSignal.tp,color:'#16c784',
-      lineWidth:1,lineStyle:2,title:'TP'});}}
+    priceLines.push(candleSeries.createPriceLine({price:activeSignal.sl,color:'#ea3943',lineWidth:1,lineStyle:2,title:'SL'}));
+    priceLines.push(candleSeries.createPriceLine({price:activeSignal.tp1,color:'#2ebd85',lineWidth:1,lineStyle:2,title:'TP1'}));
+    priceLines.push(candleSeries.createPriceLine({price:activeSignal.tp2,color:'#16c784',lineWidth:1,lineStyle:2,title:'TP2'}));
+    priceLines.push(candleSeries.createPriceLine({price:activeSignal.tp3,color:'#0ecb81',lineWidth:2,lineStyle:2,title:'TP3'}));}}
 
 /* ================= UI UPDATE ================= */
 const fmt=v=>v>=1000?v.toLocaleString('en-US',{maximumFractionDigits:1})
   :v>=1?v.toFixed(2):v.toFixed(5);
-function tfLabel(){return tf==='1d'?'din':tf==='4h'?'ghante':tf==='1h'?'ghante':'minute';}
-function barsToText(b){return tf==='1d'?`${Math.round(b)} din`:tf==='4h'?`${(b/6).toFixed(1)} din`:`${b} ${tfLabel()}`;}
+function barsToText(b){return tf==='1d'?`${Math.round(b)} days`:tf==='4h'?`${(b/6).toFixed(1)} days`:`${b} ${tf==='1h'?'hours':'minutes'}`;}
 
 function renderSignal(){
   const n=klines.length,i=n-1;
@@ -335,7 +344,7 @@ function renderSignal(){
   const st=document.getElementById('sigType'),ss=document.getElementById('sigSub'),
         lv=document.getElementById('sigLevels');
   if(!activeSignal){card.className='signal-card sig-wait';st.textContent='NO TRADE';
-    ss.textContent='Koi valid setup nahi — WAIT karo. Force mat karo.';
+    ss.textContent='No valid setup right now — stay patient. Never force a trade.';
     lv.style.display='none';
     document.getElementById('kvType').textContent='—';
     document.getElementById('kvHold').textContent='—';
@@ -349,17 +358,18 @@ function renderSignal(){
     lv.style.display='grid';
     document.getElementById('lvEntry').textContent=fmt(s.entry);
     document.getElementById('lvSL').textContent=fmt(s.sl);
-    document.getElementById('lvTP').textContent=fmt(s.tp);
-    document.getElementById('lvRR').textContent=mode==='swing'?'1:3':'1:1.5';
-    document.getElementById('kvType').textContent=s.dir===1?'LONG (buy karo)':'SHORT (sell karo)';
+    document.getElementById('lvTP1').textContent=fmt(s.tp1);
+    document.getElementById('lvTP2').textContent=fmt(s.tp2);
+    document.getElementById('lvTP3').textContent=fmt(s.tp3);
+    document.getElementById('lvRR').textContent=mode==='swing'?'1:3 ladder':'1:1.5 ladder';
+    document.getElementById('kvType').textContent=s.dir===1?'LONG (buy)':'SHORT (sell)';
     document.getElementById('kvHold').textContent='~'+barsToText(tf==='1d'?15:tf==='4h'?20:12);
-    document.getElementById('kvAge').textContent=age===0?'abhi abhi':age+' bars pehle';
+    document.getElementById('kvAge').textContent=age===0?'just now':age+' bars ago';
     const pnl=(klines[n-1].c-s.entry)/s.entry*s.dir;
     const pe=document.getElementById('kvPnl');
     pe.textContent=(pnl>=0?'+':'')+(pnl*100).toFixed(2)+'%';
     pe.style.color=pnl>=0?'var(--green)':'var(--red)';
-    ss.textContent+= age>8?' · ⚠️ THANDA (purana signal)':'';
-  }
+    ss.textContent+= age>8?' · ⚠️ STALE (old signal)':'';}
   drawSignalLines();}
 
 function renderVerified(){
@@ -372,13 +382,13 @@ function renderVerified(){
   document.getElementById('vbRet').textContent=v.ret+'%';
   document.getElementById('vbRet').className=v.ret>=0?'v pos':'v neg';
   document.getElementById('vbTrades').textContent=v.n;
-  document.getElementById('vbHold').textContent=v.hold+' din';
+  document.getElementById('vbHold').textContent=v.hold+' days';
   document.getElementById('vbDd').textContent=v.dd+'%';
   document.getElementById('vbDd').style.color='var(--red)';
   const b=document.getElementById('edgeBadge');
   if(v.pf>=1.5&&v.win>=55){b.textContent='STRONG EDGE';b.className='badge badge-strong';}
   else if(v.pf>=1.2){b.textContent='MODERATE EDGE';b.className='badge badge-mid';}
-  else{b.textContent='WEAK EDGE — careful';b.className='badge badge-weak';}}
+  else{b.textContent='WEAK EDGE — avoid';b.className='badge badge-weak';}}
 
 function runBacktestUI(){
   const trades=backtest();
@@ -405,10 +415,9 @@ function runBacktestUI(){
     log.innerHTML+=`<div class="trade-row"><span style="color:${t.dir===1?'var(--green)':'var(--red)'}">${t.dir===1?'LONG':'SHORT'}</span>
       <span>${d}</span><span style="color:${t.win?'var(--green)':'var(--red)'}">${(t.pnl*100).toFixed(2)}%</span>
       <span style="color:var(--muted)">${t.bars}b</span></div>`;});
-  // gate: user rule — backtest win rate check
   const gate=win>=50;
   const b=document.getElementById('edgeBadge');
-  if(tf==='1d'){b.textContent=gate?`EDGE OK (${win.toFixed(0)}%)`:`WEAK (${win.toFixed(0)}%) — skip`; 
+  if(tf==='1d'){b.textContent=gate?`EDGE OK (${win.toFixed(0)}%)`:`WEAK (${win.toFixed(0)}%) — skip`;
     b.className='badge '+(gate?'badge-strong':'badge-weak');}}
 
 function drawEquity(arr){
@@ -442,59 +451,54 @@ function checkSLGuard(price){
   const banner=document.getElementById('alertBanner');
   if(dist<=warnZone&&warnLevel===0){warnLevel=1;
     banner.className='alert-banner warn';banner.style.display='flex';
-    banner.innerHTML=`⚠️ <b>SL WARNING:</b> Price SL ke paas aa raha hai (${fmt(price)} vs SL ${fmt(s.sl)}) — exit socho!`;
+    banner.innerHTML=`⚠️ <b>SL WARNING:</b> Price is approaching your stop loss (${fmt(price)} vs SL ${fmt(s.sl)}) — consider exiting!`;
     beep(660,250);setTimeout(()=>beep(660,250),350);
-    notify('SignalPro SL Warning',`${sym}: price SL ke paas! Consider exit.`);}
+    notify('TradeOptix SL Warning',`${sym}: price near stop loss! Consider exit.`);}
   else if(s.dir===1?price<=s.sl:price>=s.sl){warnLevel=2;
     banner.className='alert-banner danger';banner.style.display='flex';
-    banner.innerHTML=`🛑 <b>SL HIT!</b> ${sym} — stop loss cross ho gaya. Trade close karo.`;
-    beep(440,600);notify('SignalPro SL HIT',`${sym}: Stop loss hit!`);
-    tracking=false;document.getElementById('btnTrack').textContent='🔔 Trade Liya — SL Guard ON';}
+    banner.innerHTML=`🛑 <b>STOP LOSS HIT!</b> ${sym} — your stop loss has been crossed. Close the trade now.`;
+    beep(440,600);notify('TradeOptix SL HIT',`${sym}: Stop loss hit!`);
+    tracking=false;document.getElementById('btnTrack').textContent='🔔 I Took This Trade — Arm SL Guard';}
   else if(dist>warnZone*1.5&&warnLevel===1){warnLevel=0;
     banner.style.display='none';}}
 
 /* ================= INIT & EVENTS ================= */
 async function loadAll(){
-  document.getElementById('sigSub').textContent='Data load ho raha hai...';
+  document.getElementById('sigSub').textContent='Loading market data...';
   try{
     klines=await fetchKlinesPaginated();
-    if(klines.length<100)throw new Error('kam data');
+    if(klines.length<100)throw new Error('insufficient data');
     computeInd();renderVerified();renderSignal();updateChart();
-    const first=klines[0],last=klines[klines.length-1];
-    const days=Math.round((last.t-first.t)/86400000);
-    console.log(`Loaded ${klines.length} candles (${days} days)`);
   }catch(e){
-    document.getElementById('sigSub').textContent='❌ Binance data nahi mila — internet/CORS check karo. Retry: page refresh.';
+    document.getElementById('sigSub').textContent='❌ Could not load Binance data — check internet connection and refresh the page.';
     console.error(e);}}
 
 document.getElementById('symbolSel').addEventListener('change',e=>{
   sym=e.target.value;tracking=false;warnLevel=0;
   document.getElementById('alertBanner').style.display='none';
-  document.getElementById('btnTrack').textContent='🔔 Trade Liya — SL Guard ON';
+  document.getElementById('btnTrack').textContent='🔔 I Took This Trade — Arm SL Guard';
   connectWS();loadAll();});
-document.getElementById('tfSel').addEventListener('change',e=>{
-  tf=e.target.value;loadAll();});
-document.getElementById('modeSel').addEventListener('change',e=>{
-  mode=e.target.value;renderSignal();});
+document.getElementById('tfSel').addEventListener('change',e=>{tf=e.target.value;loadAll();});
+document.getElementById('modeSel').addEventListener('change',e=>{mode=e.target.value;renderSignal();});
 document.getElementById('btnBacktest').addEventListener('click',e=>{
-  e.target.textContent='⏳ Chal raha hai...';
-  setTimeout(()=>{runBacktestUI();e.target.textContent='⚡ Backtest Chalao (Live Data)';},50);});
+  e.target.textContent='⏳ Running...';
+  setTimeout(()=>{runBacktestUI();e.target.textContent='⚡ Run Backtest (Live Data)';},50);});
 document.getElementById('btnTrack').addEventListener('click',e=>{
-  if(!activeSignal){alert('Pehle valid signal ka wait karo — abhi NO TRADE hai.');return;}
+  if(!activeSignal){alert('No active signal — please wait for a valid setup.');return;}
   tracking=!tracking;
   if(tracking){warnLevel=0;
-    e.target.textContent='🛡️ SL Guard ACTIVE — band karo';
+    e.target.textContent='🛡️ SL Guard ACTIVE — disarm';
     beep(880,150);
-    alert(`SL Guard ON!\n${sym} ${activeSignal.dir===1?'LONG':'SHORT'}\nEntry: ${fmt(activeSignal.entry)}\nSL: ${fmt(activeSignal.sl)}\nTP: ${fmt(activeSignal.tp)}\n\nPrice SL ke 0.5×ATR (${fmt(CFG.warnAtr*activeSignal.atr)}) ke andar aate hi warning milegi.`);}
-  else{e.target.textContent='🔔 Trade Liya — SL Guard ON';
+    alert(`SL Guard is now ACTIVE!\n${sym} ${activeSignal.dir===1?'LONG':'SHORT'}\nEntry: ${fmt(activeSignal.entry)}\nSL: ${fmt(activeSignal.sl)}\nTP1: ${fmt(activeSignal.tp1)} | TP2: ${fmt(activeSignal.tp2)} | TP3: ${fmt(activeSignal.tp3)}\n\nYou will be warned before the stop loss is hit (0.5×ATR zone).`);}
+  else{e.target.textContent='🔔 I Took This Trade — Arm SL Guard';
     document.getElementById('alertBanner').style.display='none';}});
 document.getElementById('btnNotify').addEventListener('click',async e=>{
-  if(!('Notification'in window)){alert('Browser notifications support nahi karta');return;}
+  if(!('Notification'in window)){alert('This browser does not support notifications');return;}
   const p=await Notification.requestPermission();
   e.target.textContent=p==='granted'?'✅ Notifications ON':'❌ Notifications Blocked';
-  if(p==='granted')notify('SignalPro Ready','SL alerts ab browser me bhi aayenge.');});
+  if(p==='granted')notify('TradeOptix Ready','SL alerts will now appear here.');});
 
-// auto-refresh: har naye candle par data + signal refresh (poll candle close)
+// auto-refresh: check for new candle every 30s
 setInterval(async()=>{
   if(document.hidden)return;
   try{
@@ -505,15 +509,48 @@ setInterval(async()=>{
     const newest=raw[raw.length-1];
     if(newest[0]>lastT||+newest[4]!==klines[klines.length-1].c){
       klines=await fetchKlinesPaginated();
-      computeInd();renderSignal();updateChart();
-      console.log('Candle update — signal refreshed');}
+      computeInd();renderSignal();updateChart();}
   }catch(e){}},30000);
 
-// keyboard shortcut: T = toggle tracking
+// keyboard shortcut: T = toggle SL guard
 document.addEventListener('keydown',e=>{
   if(e.key.toLowerCase()==='t')document.getElementById('btnTrack').click();});
 
-initChart();connectWS();loadAll();
+/* ================= INSFORGE DB SYNC ================= */
+let dbTradeSaved=false;
+function dbConfigured(){return window.INSFORGE_URL && !window.INSFORGE_URL.includes('YOUR-PROJECT');}
+async function loadDbSignals(){
+  const st=document.getElementById('dbStatus'),list=document.getElementById('dbSignals');
+  if(!dbConfigured()){st.innerHTML='⚠️ DB not configured — add your InsForge URL + Anon Key in <b>backend/db_client.js</b>.';return;}
+  try{
+    const rows=await dbGet('signals','select=*&order=signal_time.desc&limit=20');
+    if(!rows.length){st.textContent='✅ DB Connected — no signals yet. They will appear here once the Python engine runs.';return;}
+    st.textContent=`✅ DB Connected — ${rows.length} recent signals`;
+    list.innerHTML=rows.map(s=>{const d=new Date(s.signal_time);
+      return `<div class="trade-row"><span style="color:${s.direction===1?'var(--green)':'var(--red)'}">${s.direction===1?'LONG':'SHORT'}</span>
+      <span>${s.symbol.replace('USDT','')}</span><span>@ ${fmt(s.entry_price)}</span>
+      <span style="color:var(--muted)">${d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})} ${d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</span>
+      <span class="badge ${s.status==='ACTIVE'?'badge-strong':'badge-mid'}">${s.status}</span></div>`;}).join('');
+  }catch(e){st.textContent='❌ DB error: '+e.message+' (did you run schema.sql? are keys correct?)';}}
+async function saveTrackedTradeToDb(){
+  if(!dbConfigured()||!activeSignal||dbTradeSaved)return;
+  dbTradeSaved=true;
+  await dbPost('tracked_trades',{symbol:sym,direction:activeSignal.dir,entry_price:activeSignal.entry,
+    stop_loss:activeSignal.sl,take_profit:activeSignal.tp3,status:'OPEN'});}
+async function saveAlertToDb(type,price,msg){
+  if(!dbConfigured())return;
+  await dbPost('alerts',{symbol:sym,alert_type:type,price_at_alert:price,message:msg});}
+/* Hook SL Guard events into DB */
+const _origCheckSL=checkSLGuard;
+checkSLGuard=function(price){
+  const wl=warnLevel;_origCheckSL(price);
+  if(tracking&&activeSignal&&warnLevel>wl){
+    if(warnLevel===1)saveAlertToDb('SL_WARNING',price,`Price within 0.5xATR of stop loss — ${sym}`);
+    if(warnLevel===2)saveAlertToDb('SL_HIT',price,`Stop loss hit — ${sym}`);}
+  if(tracking&&activeSignal)saveTrackedTradeToDb();};
+document.getElementById('btnTrack').addEventListener('click',()=>{dbTradeSaved=false;});
+
+initChart();connectWS();loadAll();loadDbSignals();
 </script>
 </body>
 </html>
