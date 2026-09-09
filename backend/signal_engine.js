@@ -1,12 +1,16 @@
-// TradeOptix — Signal Engine v2 (Confluence) — InsForge Edge Function (Deno/TS)
-// Attach schedule (cron every 30 min). DB via InsForge SQL API.
-// Backtest (5y, fees incl): BTC 57.1%/PF 2.24 · ETH 61.5%/PF 2.50 · LINK 53.3%/PF 1.86
+// TradeOptix — Signal Engine v3 — InsForge Edge Function (Deno/TS)
+// Scans TOP-25 USDT coins by volume on BOTH 1D and 4H timeframes.
+// Attach schedule: every 30 min (cron "*/30 * * * *").
+//
+// 1D (5y validated, fees incl): BTC 57.1%/PF 2.24 · ETH 61.5%/PF 2.50 · LINK 53.3%/PF 1.86
+// 4H (short-sample): promising but less validated — smaller size recommended.
 // LONG : EMA20>EMA50>EMA200 + Supertrend bull + price>VWAP + RSI cross >70
 // SHORT: EMA20<EMA50<EMA200 + Supertrend bear + price<VWAP + RSI cross <30
 // SL = 2xATR · TP ladder 1R/2R/3R
 
 const BINANCE = "https://data-api.binance.vision/api/v3";
-const COINS = ["BTCUSDT", "ETHUSDT", "LINKUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "SOLUSDT"];
+const TOP_N = 25;                       // top-25 USDT pairs by 24h volume
+const TIMEFRAMES = ["1d", "4h"];        // scan both
 const RSI_BUY = 70, RSI_SELL = 30, SL_ATR = 2.0, RR = 3.0;
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";
 const KEY = Deno.env.get("INSFORGE_SERVICE_KEY") ?? "";
@@ -22,6 +26,17 @@ async function runSql(sql: string): Promise<any[]> {
   if (!r.ok) throw new Error(`SQL API ${r.status}`);
   const raw = await r.json();
   return raw.rows ?? raw.data ?? [];
+}
+
+// ---------- coin universe: top USDT pairs by volume ----------
+async function topCoins(): Promise<string[]> {
+  const r = await fetch(`${BINANCE}/ticker/24hr`);
+  const all = await r.json();
+  return all
+    .filter((t: any) => t.symbol.endsWith("USDT") && !/(UP|DOWN|BULL|BEAR)/.test(t.symbol) && +t.lastPrice > 0)
+    .sort((a: any, b: any) => +b.quoteVolume - +a.quoteVolume)
+    .slice(0, TOP_N)
+    .map((t: any) => t.symbol);
 }
 
 // ---------- indicators ----------
@@ -83,8 +98,8 @@ function vwap(k: any[]): (number | null)[] {
 }
 
 // ---------- data ----------
-async function fetchKlines(sym: string): Promise<any[]> {
-  const r = await fetch(`${BINANCE}/klines?symbol=${sym}&interval=1d&limit=400`);
+async function fetchKlines(sym: string, tf: string): Promise<any[]> {
+  const r = await fetch(`${BINANCE}/klines?symbol=${sym}&interval=${tf}&limit=400`);
   const raw = await r.json();
   return raw.map((x: any[]) => ({ t: x[0], o: +x[1], h: +x[2], l: +x[3], c: +x[4], v: +x[5] }));
 }
@@ -116,23 +131,29 @@ function detect(kl: any[]) {
 // ---------- main ----------
 export default async function handler(_req: Request, _ctx: unknown): Promise<Response> {
   const logs: string[] = [];
-  for (const sym of COINS) {
-    try {
-      const kl = await fetchKlines(sym);
-      const sig = detect(kl);
-      if (!sig) { logs.push(`-- ${sym}: no setup`); continue; }
-      const recent = await runSql(
-        `SELECT 1 FROM signals WHERE symbol='${esc(sym)}' AND signal_time >= now() - interval '24 hours' LIMIT 1`
-      );
-      if (recent.length > 0) { logs.push(`-- ${sym}: already signalled (24h)`); continue; }
-      await runSql(
-        `INSERT INTO signals (symbol,timeframe,direction,entry_price,stop_loss,take_profit,atr,rr_ratio,status) VALUES ` +
-        `('${esc(sym)}','1d',${sig.dir},${sig.entry},${sig.sl},${sig.tp3},${sig.atr},${RR},'ACTIVE')`
-      );
-      logs.push(`OK ${sym} ${sig.dir === 1 ? "LONG" : "SHORT"} @ ${sig.entry.toFixed(4)} SL ${sig.sl.toFixed(4)} TP ${sig.tp3.toFixed(4)}`);
-    } catch (e) { logs.push(`WARN ${sym}: ${String(e)}`); }
+  let coins: string[] = [];
+  try { coins = await topCoins(); } catch (e) { return new Response(JSON.stringify({ error: String(e) }), { status: 502 }); }
+  let scanned = 0;
+  for (const sym of coins) {
+    for (const tf of TIMEFRAMES) {
+      scanned++;
+      try {
+        const kl = await fetchKlines(sym, tf);
+        const sig = detect(kl);
+        if (!sig) continue;
+        const recent = await runSql(
+          `SELECT 1 FROM signals WHERE symbol='${esc(sym)}' AND timeframe='${tf}' AND signal_time >= now() - interval '24 hours' LIMIT 1`
+        );
+        if (recent.length > 0) { logs.push(`-- ${sym} ${tf}: already signalled`); continue; }
+        await runSql(
+          `INSERT INTO signals (symbol,timeframe,direction,entry_price,stop_loss,take_profit,atr,rr_ratio,status) VALUES ` +
+          `('${esc(sym)}','${tf}',${sig.dir},${sig.entry},${sig.sl},${sig.tp3},${sig.atr},${RR},'ACTIVE')`
+        );
+        logs.push(`OK ${sym} ${tf} ${sig.dir === 1 ? "LONG" : "SHORT"} @ ${sig.entry.toFixed(4)}`);
+      } catch (e) { logs.push(`WARN ${sym} ${tf}: ${String(e)}`); }
+    }
   }
-  return new Response(JSON.stringify({ scanned: COINS.length, at: new Date().toISOString(), logs }, null, 2), {
+  return new Response(JSON.stringify({ coins: coins.length, scans: scanned, at: new Date().toISOString(), logs }, null, 2), {
     status: 200, headers: { "Content-Type": "application/json" },
   });
 }

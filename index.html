@@ -702,7 +702,8 @@ async function loadDbSignals(){
         return `<div class="trade-row"><span style="color:${s.direction===1?'var(--green)':'var(--red)'}">${s.direction===1?'LONG':'SHORT'}</span>
         <span>${String(s.symbol).replace('USDT','')}</span><span>@ ${fmt(+s.entry_price)}</span>
         <span style="color:var(--muted)">${d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})} ${d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</span>
-        <span class="badge ${s.status==='ACTIVE'?'badge-strong':'badge-mid'}">${s.status}</span></div>`;}).join('');
+        <span class="badge ${s.timeframe==='4h'?'badge-mid':'badge-strong'}">${s.timeframe==='4h'?'4H':'1D'}</span>
+      <span class="badge ${s.status==='ACTIVE'?'badge-strong':'badge-mid'}">${s.status}</span></div>`;}).join('');
       return;
     }catch(e){}}
   st.innerHTML='Feed unreachable. If this persists after refresh, redeploy the frontend (feed URL updated in latest version).';
