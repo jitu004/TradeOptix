@@ -146,12 +146,6 @@ select:focus,input:focus{border-color:var(--yellow)}
     </div>
 
     <div class="panel" style="margin-top:14px">
-      <h3>📡 Signals History (Cloud DB)</h3>
-      <div id="dbStatus" class="note" style="margin-bottom:8px">Connecting to database…</div>
-      <div class="trade-log" id="dbSignals" style="max-height:190px"></div>
-    </div>
-
-    <div class="panel" style="margin-top:14px">
       <h3>5-Year Verified Backtest (1D)</h3>
       <div class="stat-grid">
         <div class="stat"><div class="v" id="vbWin">—</div><div class="k">Win Rate</div></div>
@@ -210,12 +204,13 @@ select:focus,input:focus{border-color:var(--yellow)}
   </div>
 </div>
 
-<div style="max-width:1750px;margin:0 auto;padding:0 20px 20px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+<div style="max-width:1750px;margin:0 auto;padding:0 20px 20px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
   <div class="panel"><h3>🚀 Top Gaining (24h)</h3><div id="gainersList" style="font-size:12px;color:var(--muted)">Loading…</div></div>
   <div class="panel"><h3>📉 Top Losing (24h)</h3><div id="losersList" style="font-size:12px;color:var(--muted)">Loading…</div></div>
   <div class="panel"><h3>🆕 New Listing</h3><div id="newList" style="font-size:12px;color:var(--muted)">Loading…</div></div>
+  <div class="panel"><h3>📡 Signals History (Live)</h3><div id="dbStatus" class="note" style="margin-bottom:8px">Connecting…</div><div class="trade-log" id="dbSignals" style="max-height:230px"></div></div>
 </div>
-<style>@media(max-width:1000px){.main ~ div[style*="repeat(3"]{grid-template-columns:1fr!important}}</style>
+<style>@media(max-width:1200px){.main ~ div[style*="repeat(4"]{grid-template-columns:repeat(2,1fr)!important}}@media(max-width:700px){.main ~ div[style*="repeat(4"]{grid-template-columns:1fr!important}}</style>
 
 <div id="coinModal" style="display:none;position:fixed;inset:0;background:rgba(4,6,10,.93);z-index:100;overflow-y:auto;padding:28px 14px">
   <div style="max-width:920px;margin:0 auto;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px">
@@ -704,7 +699,7 @@ document.addEventListener('keydown',e=>{
 async function loadDbSignals(){
   const st=document.getElementById('dbStatus'),list=document.getElementById('dbSignals');
   st.textContent='Loading signals feed...';
-  const urls=['/api/signals','https://r3pjdfkc.insforge.site/api/signals'];
+  const urls=['https://r3pjdfkc.insforge.dev/functions/public_signals','/api/signals'];
   for(const url of urls){
     try{
       const r=await fetch(url);
