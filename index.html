@@ -90,15 +90,6 @@ select:focus,input:focus{border-color:var(--yellow)}
 <div class="header">
   <div class="logo">TRADE<span>OPTIX</span> <span class="live-dot"></span></div>
   <select id="symbolSel"><option>Loading coins…</option></select>
-  <select id="tfSel">
-    <option value="1m">1m</option>
-    <option value="15m">15m</option><option value="30m">30m</option>
-    <option value="1h">1h</option><option value="2h">2h</option>
-    <option value="4h">4h</option><option value="6h">6h</option>
-    <option value="12h">12h</option><option value="1d" selected>1D</option>
-    <option value="3d">3D</option><option value="1w">1W</option>
-    <option value="1M">1M (Monthly · 1Y view)</option>
-  </select>
   <div class="price-box">
     <span id="livePrice">—</span>
     <span id="priceChg">—</span>
@@ -657,7 +648,6 @@ document.getElementById('symbolSel').addEventListener('change',e=>{
   document.getElementById('alertBanner').style.display='none';
   document.getElementById('btnTrack').textContent='🛡️ Arm SL Guard — I\'m In';
   connectWS();loadAll();loadSentiment();loadTV();});
-document.getElementById('tfSel').addEventListener('change',e=>{tf=e.target.value;avgHoldBars=null;loadAll();});
 document.getElementById('btnBacktest').addEventListener('click',e=>{
   e.target.textContent='⏳ Running…';
   setTimeout(()=>{runBacktestUI();e.target.textContent='⚡ Run Backtest (Live Data)';},50);});
@@ -699,7 +689,7 @@ document.addEventListener('keydown',e=>{
 async function loadDbSignals(){
   const st=document.getElementById('dbStatus'),list=document.getElementById('dbSignals');
   st.textContent='Loading signals feed...';
-  const urls=['https://r3pjdfkc.insforge.dev/functions/public_signals','/api/signals'];
+  const urls=['https://r3pjdfkc.function2.insforge.app/public_signals','/api/signals'];
   for(const url of urls){
     try{
       const r=await fetch(url);
@@ -715,7 +705,7 @@ async function loadDbSignals(){
         <span class="badge ${s.status==='ACTIVE'?'badge-strong':'badge-mid'}">${s.status}</span></div>`;}).join('');
       return;
     }catch(e){}}
-  st.innerHTML='Signals feed not deployed yet. Deploy <b>backend/public_signals.py</b> in InsForge Functions. App works fully without it.';
+  st.innerHTML='Feed unreachable. If this persists after refresh, redeploy the frontend (feed URL updated in latest version).';
 }
 
 /* Auto-enable notifications on first click */
