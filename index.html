@@ -137,20 +137,6 @@ select:focus,input:focus{border-color:var(--yellow)}
       </div>
     </div>
 
-    <div class="panel" style="margin-top:14px">
-      <h3>5-Year Verified Backtest (1D)</h3>
-      <select id="vbCoin" style="width:100%;margin-bottom:8px"></select>
-      <div class="stat-grid">
-        <div class="stat"><div class="v" id="vbWin">—</div><div class="k">Win Rate</div></div>
-        <div class="stat"><div class="v" id="vbPf">—</div><div class="k">Profit Factor</div></div>
-        <div class="stat"><div class="v" id="vbRet">—</div><div class="k">Total Return</div></div>
-        <div class="stat"><div class="v" id="vbTrades">—</div><div class="k">Trades</div></div>
-        <div class="stat"><div class="v" id="vbHold">—</div><div class="k">Avg Hold</div></div>
-        <div class="stat"><div class="v" id="vbDd">—</div><div class="k">Max DD</div></div>
-      </div>
-      <div class="note" style="margin-top:10px">Real 5-year backtest (Sep 2021 – Sep 2026, fees included). Verify with "Run Backtest" before trading.</div>
-      <button class="btn btn-green btn-block" id="btnBacktest">⚡ Run Backtest (Live Data)</button>
-    </div>
   </div>
 
   <!-- CENTER: CHART -->
@@ -174,7 +160,8 @@ select:focus,input:focus{border-color:var(--yellow)}
   <!-- RIGHT: BACKTEST DETAIL -->
   <div>
     <div class="panel">
-      <h3>Live Backtest Result</h3>
+      <h3>Live Backtest Result <span id="btCoinLbl" style="color:var(--yellow)"></span></h3>
+      <button class="btn btn-green" id="btnBacktest" style="width:100%;margin:0 0 10px">⚡ Run Backtest (Live Data)</button>
       <div class="stat-grid">
         <div class="stat"><div class="v" id="btWin">—</div><div class="k">Win Rate</div></div>
         <div class="stat"><div class="v" id="btPf">—</div><div class="k">Profit Factor</div></div>
@@ -495,7 +482,7 @@ let vbSym="BTCUSDT";
 function initVbCoin(){const sel=document.getElementById("vbCoin");if(!sel)return;
   sel.innerHTML=Object.keys(VERIFIED).map(k=>`<option value="${k}">${k.replace("USDT","")}/USDT</option>`).join("");
   sel.value=vbSym;
-  sel.addEventListener("change",e=>{vbSym=e.target.value;});}
+  sel.addEventListener("change",e=>{vbSym=e.target.value;renderVerified();});}
 function renderVerified(){
   const v=VERIFIED[vbSym];
   if(!v){['vbWin','vbPf','vbRet','vbTrades','vbHold','vbDd'].forEach(id=>document.getElementById(id).textContent='—');
@@ -516,6 +503,7 @@ function renderVerified(){
 
 /* ================= BACKTEST UI + COLORFUL EQUITY ================= */
 function runBacktestUI(){
+  setText('btCoinLbl','— '+sym+' · 1D · ~5.5 years (2000 candles)');
   const trades=backtest();
   if(!trades.length)return;
   const wins=trades.filter(t=>t.win);
@@ -668,7 +656,15 @@ document.getElementById('symbolSel').addEventListener('change',e=>{
   sym=e.target.value;tracking=false;warnLevel=0;avgHoldBars=null;
   document.getElementById('alertBanner').style.display='none';
   document.getElementById('btnTrack').textContent='🛡️ Arm SL Guard — I\'m In';
+  resetBT();
   connectWS();loadAll();loadSentiment();loadTV();});
+function resetBT(){['btWin','btPf','btRet','btDd','btN','btAvgW','btAvgL','btHold'].forEach(id=>setText(id,'—'));
+  ['btWin','btPf','btRet'].forEach(id=>{const e=document.getElementById(id);if(e)e.className='v';});
+  setText('btCoinLbl','');
+  const log=document.getElementById('tradeLog');
+  if(log)log.innerHTML='<div style="color:var(--muted);text-align:center;padding:20px">Run a backtest — trades will appear here</div>';
+  const cv=document.getElementById('equityChart');
+  if(cv){const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);}}
 async function fetchBT(){
   const want=2000;
   const limit=1000;let endTime=undefined,all=[];
@@ -694,7 +690,7 @@ async function runBT(){
   }catch(e){alert('Backtest error: '+e.message);}
   finally{tf=origTf;klines=origKlines;ind=origInd;
     if(btn)btn.textContent='⚡ Run Backtest (Live Data)';}}
-document.getElementById('btnBacktest').addEventListener('click',()=>{renderVerified();runBT();});
+document.getElementById('btnBacktest').addEventListener('click',()=>runBT());
 document.getElementById('btnTrack').addEventListener('click',e=>{
   if(!activeSignal){alert('No active signal — wait for a valid setup.');return;}
   tracking=!tracking;
@@ -917,7 +913,7 @@ function loadTV(){
     support_host:'https://www.tradingview.com'});}
 
 /* ================= BOOT ================= */
-initVbCoin();loadCoinList().then(()=>{connectWS();loadAll();loadDbSignals();initConverter();loadSentiment();loadMarketPanels();loadTV();});
+loadCoinList().then(()=>{connectWS();loadAll();loadDbSignals();initConverter();loadSentiment();loadMarketPanels();loadTV();});
 setInterval(loadSentiment,600000);
 setInterval(()=>loadMarketPanels(),300000);
 setInterval(()=>loadFx(),3600000);
