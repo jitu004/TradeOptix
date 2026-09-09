@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TradeOptix — Pro Crypto Trading Terminal</title>
-<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://s3.tradingview.com/tv.js"></script>
 <style>
 :root{
   --bg:#0b0e14; --panel:#12161f; --panel2:#171c28; --border:#232a3a;
@@ -161,30 +161,11 @@ select:focus,input:focus{border-color:var(--yellow)}
 
   <!-- CENTER: CHART -->
   <div class="panel">
-    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px">
-      <span id="areaName" style="font-size:15px;font-weight:700;color:var(--muted)">Bitcoin Price (BTC)</span>
-      <span id="areaPrice" style="font-size:26px;font-weight:800;font-family:var(--mono)">—</span>
-      <span id="areaChg" style="font-size:13px">—</span>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h3 style="margin:0">📊 Live Chart — TradingView</h3>
+      <span id="wsStatus" style="color:var(--green);font-size:12px">● LIVE</span>
     </div>
-    <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap">
-      <button class="ind-btn on area-tab" data-p="1D">1D</button>
-      <button class="ind-btn area-tab" data-p="7D">7D</button>
-      <button class="ind-btn area-tab" data-p="1M">1M</button>
-      <button class="ind-btn area-tab" data-p="3M">3M</button>
-      <button class="ind-btn area-tab" data-p="1Y">1Y</button>
-      <button class="ind-btn area-tab" data-p="YTD">YTD</button>
-    </div>
-    <canvas id="areaChart" style="width:100%;height:220px;margin-bottom:12px"></canvas>
-    <h3>Real-Time Chart — Binance <span id="chartCoin" style="color:var(--yellow)"></span> <span id="wsStatus" style="float:right;color:var(--green)">● LIVE</span></h3>
-    <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
-      <span style="flex:1"></span>
-      <button class="ind-btn" id="btnDraw">📈 Draw Line</button>
-      <button class="ind-btn" id="btnClearLines">🗑️ Clear</button>
-    </div>
-    <div style="position:relative">
-      <div id="chart"></div>
-      <canvas id="drawCanvas" style="position:absolute;top:0;left:0;pointer-events:none;z-index:10"></canvas>
-    </div>
+    <div id="tv_chart" style="height:520px;width:100%"></div>
     <div class="section-title">💱 Currency Converter (Real-Time)</div>
     <div class="conv-row">
       <input type="number" id="convAmt" value="100" min="0">
@@ -253,7 +234,7 @@ select:focus,input:focus{border-color:var(--yellow)}
       <button class="ind-btn m-tab" data-p="1Y">1Y</button>
       <button class="ind-btn m-tab" data-p="YTD">YTD</button>
     </div>
-    <canvas id="mAreaChart" style="width:100%;height:260px"></canvas>
+    <div id="tv_modal_chart" style="width:100%;height:280px"></div>
     <div id="mUpdated" style="color:var(--muted);font-size:11px;margin-top:6px"></div>
     <div class="section-title" id="mStatsTitle">Market Stats in USD</div>
     <div class="stat-grid" id="mStats" style="grid-template-columns:repeat(4,1fr)"></div>
@@ -282,10 +263,8 @@ const VERIFIED={'BTCUSDT':{win:46.7,pf:1.34,ret:24.4,n:30,hold:14.9,dd:-26.9},
 const FALLBACK_COINS=['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','LINKUSDT','AVAXUSDT','TRXUSDT','DOTUSDT','MATICUSDT','LTCUSDT','BCHUSDT','UNIUSDT','ATOMUSDT','NEARUSDT','INJUSDT','SUIUSDT','ARBUSDT','OPUSDT'];
 
 /* ================= STATE ================= */
-let klines=[],ind=null,ws=null,wsK=null,sym='BTCUSDT',tf='1d',mode='swing';
+let klines=[],ind=null,ws=null,sym='BTCUSDT',tf='1d',mode='swing';
 let activeSignal=null,tracking=false,warnLevel=0,avgHoldBars=null;
-let overlays={vol:null,e20:null,e50:null,e200:null,stUp:null,stDn:null,vwap:null,rsi:null};
-let indOn={vol:true,e20:true,e50:true,e200:true,st:true,vwap:true,rsi:false};
 
 /* ================= INDICATORS ================= */
 function emaArr(v,n){const k=2/(n+1);const o=new Array(v.length);let s=0;
@@ -403,7 +382,6 @@ async function fetchKlinesPaginated(){
 
 function connectWS(){
   if(ws)ws.close();
-  if(wsK)wsK.close();
   try{
   ws=new WebSocket(`${WS}/${sym.toLowerCase()}@miniTicker`);
   ws.onmessage=e=>{const d=JSON.parse(e.data);const p=+d.c;
@@ -420,82 +398,7 @@ function connectWS(){
   ws.onopen=()=>{document.getElementById('wsStatus').textContent='● LIVE';
     document.getElementById('wsStatus').style.color='var(--green)';};
   }catch(e){}
-  /* Real-time kline stream - chart updates every tick, like Binance */
-  try{
-    wsK=new WebSocket(`${WS}/${sym.toLowerCase()}@kline_${tf}`);
-    wsK.onmessage=e=>{
-      const k=JSON.parse(e.data).k;
-      const candle={t:k.t,o:+k.o,h:+k.h,l:+k.l,c:+k.c,v:+k.v};
-      const last=klines[klines.length-1];
-      if(!last||!candleSeries)return;
-      if(candle.t===last.t){
-        klines[klines.length-1]=candle;
-        candleSeries.update({time:candle.t/1000,open:candle.o,high:candle.h,low:candle.l,close:candle.c});
-        if(overlays.vol)overlays.vol.update({time:candle.t/1000,value:candle.v,color:candle.c>=candle.o?'rgba(14,203,129,.4)':'rgba(246,70,93,.4)'});
-        redrawLines();
-      }else if(candle.t>last.t){loadAll();return;}
-      if(tracking&&activeSignal)checkSLGuard(candle.c);};
-    wsK.onclose=()=>{setTimeout(connectWS,3000);};
-  }catch(e){}}
-
-/* ================= CHART ================= */
-let chart,candleSeries,drawCanvas;
-function removeOverlays(){Object.keys(overlays).forEach(k=>{if(overlays[k]){try{chart.removeSeries(overlays[k]);}catch(e){}overlays[k]=null;}});}
-function initChart(){if(chart)chart.remove();
-  chart=LightweightCharts.createChart(document.getElementById('chart'),{
-    layout:{background:{color:'#0b0e11'},textColor:'#848e9c',fontFamily:'-apple-system,Segoe UI,sans-serif'},
-    grid:{vertLines:{color:'#1c2127'},horzLines:{color:'#1c2127'}},
-    rightPriceScale:{borderColor:'#2b3139'},timeScale:{borderColor:'#2b3139',timeVisible:true,secondsVisible:false},
-    crosshair:{mode:0,vertLine:{color:'#5e6673',labelBackgroundColor:'#2b3139'},horzLine:{color:'#5e6673',labelBackgroundColor:'#2b3139'}}});
-  candleSeries=chart.addCandlestickSeries({upColor:'#0ecb81',downColor:'#f6465d',
-    borderVisible:false,wickUpColor:'#0ecb81',wickDownColor:'#f6465d'});
-  new ResizeObserver(()=>chart.applyOptions({width:document.getElementById('chart').clientWidth,
-    height:document.getElementById('chart').clientHeight})).observe(document.getElementById('chart'));
-  chart.timeScale().subscribeVisibleLogicalRangeChange(()=>setTimeout(redrawLines,10));}
-
-function buildOverlays(){
-  removeOverlays();
-  const t=klines.map(k=>k.t/1000);
-  if(indOn.vol){
-    chart.priceScale('').applyOptions({scaleMargins:{top:0.72,bottom:0}});
-    overlays.vol=chart.addHistogramSeries({priceScaleId:'',lastValueVisible:false,priceLineVisible:false});
-    overlays.vol.setData(klines.map((k,i)=>({time:t[i],value:k.v,color:k.c>=k.o?'rgba(14,203,129,.4)':'rgba(246,70,93,.4)'})));}
-  if(indOn.e20){overlays.e20=chart.addLineSeries({color:'#4f9cf9',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
-    overlays.e20.setData(t.map((tt,i)=>({time:tt,value:ind.eF[i]})));}
-  if(indOn.e50){overlays.e50=chart.addLineSeries({color:'#f0b90b',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
-    overlays.e50.setData(t.map((tt,i)=>({time:tt,value:ind.eS[i]})));}
-  if(indOn.e200){overlays.e200=chart.addLineSeries({color:'#9b6bf3',lineWidth:2,priceLineVisible:false,lastValueVisible:false});
-    overlays.e200.setData(t.map((tt,i)=>({time:tt,value:ind.eL[i]})));}
-  if(indOn.st){
-    const up=[],dn=[];
-    for(let i=0;i<klines.length;i++){if(ind.st[i]==null){up.push({time:t[i]});dn.push({time:t[i]});}
-      else if(ind.stDir[i]===1)up.push({time:t[i],value:ind.st[i]});
-      else dn.push({time:t[i],value:ind.st[i]});}
-    overlays.stUp=chart.addLineSeries({color:'#16c784',lineWidth:2,lineStyle:0,priceLineVisible:false,lastValueVisible:false});
-    overlays.stUp.setData(up);
-    overlays.stDn=chart.addLineSeries({color:'#ea3943',lineWidth:2,priceLineVisible:false,lastValueVisible:false});
-    overlays.stDn.setData(dn);}
-  if(indOn.vwap){overlays.vwap=chart.addLineSeries({color:'#e6e9f0',lineWidth:1,lineStyle:3,priceLineVisible:false,lastValueVisible:false});
-    overlays.vwap.setData(t.map((tt,i)=>ind.vwap[i]!=null?{time:tt,value:ind.vwap[i]}:{time:tt}).filter((p,i,arr)=>p.value!=null));}
-  if(indOn.rsi){
-    chart.priceScale('rsi').applyOptions({scaleMargins:{top:0.84,bottom:0}});
-    overlays.rsi=chart.addLineSeries({color:'#d78ef0',lineWidth:1,priceScaleId:'rsi',lastValueVisible:false,priceLineVisible:false});
-    overlays.rsi.setData(t.map((tt,i)=>({time:tt,value:ind.r[i]})));
-    [70,50,30].forEach(lv=>overlays.rsi.createPriceLine({price:lv,color:lv===50?'#8b93a766':'#8b93a7',lineWidth:1,lineStyle:2,axisLabelVisible:false}));}}
-
-function updateChart(){
-  const data=klines.map(k=>({time:k.t/1000,open:k.o,high:k.h,low:k.l,close:k.c}));
-  candleSeries.setData(data);
-  buildOverlays();
-  const markers=[];
-  backtest().slice(-60).forEach(tr=>{
-    markers.push({time:klines.find(k=>k.t>=tr.t).t/1000,
-      position:tr.dir===1?'belowBar':'aboveBar',
-      color:tr.win?'#16c784':'#ea3943',
-      shape:tr.dir===1?'arrowUp':'arrowDown',text:(tr.win?'+':'')+(tr.pnl*100).toFixed(1)+'%'});});
-  candleSeries.setMarkers(markers.sort((a,b)=>a.time-b.time));
-  chart.timeScale().fitContent();
-  redrawLines();}
+}
 
 /* ================= UI ================= */
 const fmt=v=>v>=1000?v.toLocaleString('en-US',{maximumFractionDigits:1})
@@ -519,7 +422,7 @@ function renderSignal(){
   setText('kvST',stUp?'BULLISH ▲':'BEARISH ▼');
   setCol('kvST',stUp?'var(--green)':'var(--red)');
   setText('kvAtr',fmt(ind.a[i]));
-  document.getElementById('chartCoin').textContent=sym+' · '+tf;
+  setText('chartCoin',sym+' · '+tf);
   activeSignal=findLatestSignal();
   const card=document.getElementById('signalCard');
   const st=document.getElementById('sigType'),ss=document.getElementById('sigSub'),
@@ -719,7 +622,7 @@ async function loadAll(){
   try{
     klines=await fetchKlinesPaginated();
     if(klines.length<100)throw new Error('insufficient data');
-    computeInd();loadTrendLines();renderVerified();renderSignal();updateChart();
+    computeInd();renderVerified();renderSignal();
   }catch(e){
     document.getElementById('sigSub').textContent='❌ Could not load Binance data — check internet and refresh.';
     console.error(e);}}
@@ -728,7 +631,7 @@ document.getElementById('symbolSel').addEventListener('change',e=>{
   sym=e.target.value;tracking=false;warnLevel=0;avgHoldBars=null;
   document.getElementById('alertBanner').style.display='none';
   document.getElementById('btnTrack').textContent='🛡️ Arm SL Guard — I\'m In';
-  connectWS();loadAll();loadAreaChart();loadSentiment();});
+  connectWS();loadAll();loadSentiment();loadTV();});
 document.getElementById('tfSel').addEventListener('change',e=>{tf=e.target.value;avgHoldBars=null;loadAll();});
 document.getElementById('btnBacktest').addEventListener('click',e=>{
   e.target.textContent='⏳ Running…';
@@ -760,7 +663,7 @@ setInterval(async()=>{
     const newest=raw[raw.length-1];
     if(newest[0]>lastT||+newest[4]!==klines[klines.length-1].c){
       klines=await fetchKlinesPaginated();
-      computeInd();loadTrendLines();renderSignal();updateChart();}
+      computeInd();renderSignal();}
   }catch(e){}},30000);
 document.addEventListener('keydown',e=>{
   if(e.key.toLowerCase()==='t')document.getElementById('btnTrack').click();});
@@ -790,45 +693,6 @@ async function loadDbSignals(){
   st.innerHTML='Signals feed not deployed yet. Deploy <b>backend/public_signals.py</b> in InsForge Functions. App works fully without it.';
 }
 
-/* ================= TREND LINE DRAWING ================= */
-let drawMode=false,pendingPoint=null,trendLines=[];
-function drawCv(){return document.getElementById('drawCanvas');}
-function chartWrap(){return document.getElementById('chart').parentElement;}
-function loadTrendLines(){try{trendLines=JSON.parse(localStorage.getItem('trendlines_'+sym)||'[]');}catch(e){trendLines=[];}}
-function saveTrendLines(){try{localStorage.setItem('trendlines_'+sym,JSON.stringify(trendLines));}catch(e){}}
-function redrawLines(){
-  const cv=drawCv();if(!cv||!chart||!candleSeries)return;
-  const dpr=window.devicePixelRatio||1;
-  const W=chartWrap().clientWidth||1,H=chartWrap().clientHeight||1;
-  if(cv.width!==W*dpr){cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';}
-  const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
-  const ts=chart.timeScale();
-  const drawLine=(a,b,color,width)=>{const x1=ts.timeToCoordinate(a.t),y1=candleSeries.priceToCoordinate(a.p);
-    const x2=ts.timeToCoordinate(b.t),y2=candleSeries.priceToCoordinate(b.p);
-    if(x1==null||x2==null||y1==null||y2==null)return;
-    ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
-    ctx.fillStyle=color;ctx.beginPath();ctx.arc(x1,y1,3,0,7);ctx.fill();ctx.beginPath();ctx.arc(x2,y2,3,0,7);ctx.fill();};
-  trendLines.forEach(l=>drawLine(l.a,l.b,'#f0b90b',2));
-  if(pendingPoint){const x=ts.timeToCoordinate(pendingPoint.t),y=candleSeries.priceToCoordinate(pendingPoint.p);
-    if(x!=null&&y!=null){ctx.fillStyle='#f0b90b';ctx.beginPath();ctx.arc(x,y,4,0,7);ctx.fill();}}}
-function toggleDrawMode(){
-  drawMode=!drawMode;pendingPoint=null;
-  const btn=document.getElementById('btnDraw');
-  btn.className='ind-btn'+(drawMode?' on':'');
-  chartWrap().style.cursor=drawMode?'crosshair':'';
-  redrawLines();}
-chartWrap().addEventListener('click',e=>{
-  if(!drawMode)return;
-  const r=chartWrap().getBoundingClientRect();
-  const t=chart.timeScale().coordinateToTime(e.clientX-r.left);
-  const p=candleSeries.coordinateToPrice(e.clientY-r.top);
-  if(t==null||p==null)return;
-  if(!pendingPoint){pendingPoint={t,p};}
-  else{trendLines.push({a:pendingPoint,b:{t,p}});pendingPoint=null;saveTrendLines();}
-  redrawLines();});
-document.getElementById('btnDraw').addEventListener('click',toggleDrawMode);
-document.getElementById('btnClearLines').addEventListener('click',()=>{trendLines=[];pendingPoint=null;saveTrendLines();redrawLines();});
-
 /* Auto-enable notifications on first click */
 document.addEventListener('click',function autoNotify(){
   if('Notification'in window&&Notification.permission==='default'){
@@ -837,62 +701,6 @@ document.addEventListener('click',function autoNotify(){
       if(p==='granted'){b.textContent='✅ Notifications ON';notify('TradeOptix Ready','SL alerts enabled.');}
       else if(p==='denied'){b.textContent='❌ Blocked';}});}
 },{once:true});
-
-/* ================= AREA CHART (1D/7D/1M/3M/1Y/YTD) ================= */
-let areaPeriod='1D';
-const AREA_CFG={'1D':['1h',24],'7D':['1h',168],'1M':['4h',180],'3M':['1d',90],'1Y':['1d',365],'YTD':['1d',365]};
-async function loadAreaChart(){
-  const cfg=AREA_CFG[areaPeriod];if(!cfg)return;
-  try{
-    const r=await fetch(`${API}/klines?symbol=${sym}&interval=${cfg[0]}&limit=${cfg[1]}`);
-    const raw=await r.json();
-    if(!Array.isArray(raw))return;
-    let pts=raw.map(k=>({t:k[0],c:+k[4]}));
-    if(areaPeriod==='YTD'){const y=new Date().getUTCFullYear();pts=pts.filter(p=>new Date(p.t).getUTCFullYear()===y);}
-    if(pts.length<2)return;
-    drawArea(document.getElementById('areaChart'),pts,areaPeriod);
-    const first=pts[0].c,last=pts[pts.length-1].c;
-    const chg=(last-first)/first*100;
-    const el=document.getElementById('areaChg');
-    el.textContent=(chg>=0?'+':'')+chg.toFixed(2)+'% in the past '+areaPeriod;
-    el.style.color=chg>=0?'var(--green)':'var(--red)';
-    document.getElementById('areaPrice').textContent='$'+fmt(last);
-    document.getElementById('areaName').textContent=sym.replace('USDT','')+' Price ('+sym.replace('USDT','')+')';
-  }catch(e){}}
-function drawArea(cv,pts,period){
-  if(!cv)return;
-  const dpr=window.devicePixelRatio||1;
-  const W=cv.clientWidth,H=cv.clientHeight;
-  cv.width=W*dpr;cv.height=H*dpr;
-  const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.clearRect(0,0,W,H);
-  const padR=64,padT=14,padB=22;
-  const cs=pts.map(p=>p.c);
-  let min=Math.min(...cs),max=Math.max(...cs);
-  const rg=(max-min)||1;min-=rg*0.06;max+=rg*0.06;
-  const x=i=>8+i/(pts.length-1)*(W-padR-16),y=v=>padT+(max-v)/(max-min)*(H-padT-padB);
-  ctx.strokeStyle='#1c2127';ctx.fillStyle='#848e9c';ctx.font='11px monospace';ctx.lineWidth=1;
-  for(let g=0;g<=4;g++){const v=min+g*(max-min)/4,gy=y(v);
-    ctx.beginPath();ctx.moveTo(8,gy);ctx.lineTo(W-padR,gy);ctx.stroke();
-    ctx.fillText(v>=1000?(v/1000).toFixed(2)+'K':v.toFixed(2),W-padR+6,gy+3);}
-  ctx.fillStyle='#5e6673';
-  const f0=period==='1D'?{hour:'2-digit',minute:'2-digit'}:{month:'short',day:'numeric'};
-  ctx.fillText(new Date(pts[0].t).toLocaleString('en-GB',f0),8,H-6);
-  ctx.fillText(new Date(pts[pts.length-1].t).toLocaleString('en-GB',f0),W-padR-64,H-6);
-  ctx.strokeStyle='#848e9c';ctx.setLineDash([3,3]);
-  ctx.beginPath();ctx.moveTo(8,y(cs[0]));ctx.lineTo(W-padR,y(cs[0]));ctx.stroke();ctx.setLineDash([]);
-  const grad=ctx.createLinearGradient(0,padT,0,H);
-  grad.addColorStop(0,'rgba(240,185,11,.45)');grad.addColorStop(1,'rgba(240,185,11,0)');
-  ctx.beginPath();ctx.moveTo(x(0),y(cs[0]));
-  pts.forEach((p,i)=>ctx.lineTo(x(i),y(p.c)));
-  ctx.lineTo(x(pts.length-1),H-padB);ctx.lineTo(x(0),H-padB);ctx.closePath();
-  ctx.fillStyle=grad;ctx.fill();
-  ctx.beginPath();ctx.moveTo(x(0),y(cs[0]));
-  pts.forEach((p,i)=>ctx.lineTo(x(i),y(p.c)));
-  ctx.strokeStyle='#f0b90b';ctx.lineWidth=2;ctx.stroke();}
-document.querySelectorAll('.area-tab').forEach(b=>b.addEventListener('click',e=>{
-  document.querySelectorAll('.area-tab').forEach(x2=>x2.classList.remove('on'));
-  e.target.classList.add('on');areaPeriod=e.target.dataset.p;loadAreaChart();}));
 
 /* ================= MARKET SENTIMENT ================= */
 async function loadSentiment(){
@@ -1021,20 +829,35 @@ async function loadModal(){
   document.getElementById('mStats').innerHTML=stats.map(([k,v])=>`<div class="stat"><div class="v" style="font-size:15px">${v}</div><div class="k">${k}</div></div>`).join('');
   document.getElementById('mStatsTitle').textContent=base+' Market Stats in USD';
   loadModalChart();}
-async function loadModalChart(){
-  const cfg=AREA_CFG[modalPeriod];if(!cfg||!modalSym)return;
-  try{
-    const r=await fetch(`${API}/klines?symbol=${modalSym}&interval=${cfg[0]}&limit=${cfg[1]}`);
-    const raw=await r.json();
-    if(!Array.isArray(raw))return;
-    let pts=raw.map(k=>({t:k[0],c:+k[4]}));
-    if(modalPeriod==='YTD'){const y=new Date().getUTCFullYear();pts=pts.filter(p=>new Date(p.t).getUTCFullYear()===y);}
-    drawArea(document.getElementById('mAreaChart'),pts,modalPeriod);
-    document.getElementById('mUpdated').textContent='Page last updated: '+new Date().toLocaleString('en-US')+' (local)';
-  }catch(e){}}
+function loadModalChart(){
+  const el=document.getElementById('tv_modal_chart');
+  if(!el)return;
+  if(typeof TradingView==='undefined'){setTimeout(loadModalChart,600);return;}
+  el.innerHTML='';
+  new TradingView.widget({container_id:'tv_modal_chart',symbol:'BINANCE:'+modalSym,
+    interval:TF_TV[modalPeriod]||'60',theme:'dark',style:'1',locale:'en',
+    toolbar_bg:'#0b0e11',enable_publishing:false,hide_side_toolbar:true,
+    allow_symbol_change:false,width:'100%',height:'100%',
+    support_host:'https://www.tradingview.com'});
+  document.getElementById('mUpdated').textContent='Real-time chart by TradingView';}
+
+/* ================= TRADINGVIEW CHART ================= */
+const TF_TV={'1m':'1','15m':'15','30m':'30','1h':'60','2h':'120','4h':'240','6h':'360','12h':'720','1d':'D','3d':'D','1w':'W','1M':'M'};
+function loadTV(){
+  const el=document.getElementById('tv_chart');
+  if(!el)return;
+  if(typeof TradingView==='undefined'){setTimeout(loadTV,600);return;}
+  el.innerHTML='';
+  new TradingView.widget({container_id:'tv_chart',symbol:'BINANCE:'+sym,
+    interval:TF_TV[tf]||'60',theme:'dark',style:'1',locale:'en',
+    toolbar_bg:'#0b0e11',enable_publishing:false,hide_side_toolbar:false,
+    allow_symbol_change:true,withdateranges:true,hideideas:true,
+    studies:['MASimple@tv-basicstudies','VWAP@tv-basicstudies'],
+    width:'100%',height:'100%',
+    support_host:'https://www.tradingview.com'});}
 
 /* ================= BOOT ================= */
-initChart();loadCoinList().then(()=>{connectWS();loadAll();loadDbSignals();initConverter();loadAreaChart();loadSentiment();loadMarketPanels();});
+loadCoinList().then(()=>{connectWS();loadAll();loadDbSignals();initConverter();loadSentiment();loadMarketPanels();loadTV();});
 setInterval(loadSentiment,600000);
 setInterval(()=>loadMarketPanels(),300000);
 setInterval(()=>loadFx(),3600000);
