@@ -1,0 +1,24 @@
+# Secrets — KABHI PUSH MAT KARO
+.env
+*.key
+config.local.js
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node (agar baad me build tools add karo)
+node_modules/
+dist/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Data dumps (bade CSV files)
+*.csv
+!docs/*.csv
