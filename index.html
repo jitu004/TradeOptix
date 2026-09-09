@@ -274,7 +274,7 @@ function computeInd(){const c=klines.map(k=>k.c),h=klines.map(k=>k.h),l=klines.m
   const vwap=new Array(c.length).fill(null);let cumPV=0,cumV=0,lastDay=-1;
   for(let i=0;i<c.length;i++){const day=new Date(klines[i].t).getUTCDay()+new Date(klines[i].t).getUTCMonth()*31;
     if(day!==lastDay){cumPV=0;cumV=0;lastDay=day;}
-    cumPV+=((k[i].h+k[i].l+c[i])/3)*k[i].v;cumV+=k[i].v;
+    cumPV+=((klines[i].h+klines[i].l+c[i])/3)*klines[i].v;cumV+=klines[i].v;
     vwap[i]=cumV>0?cumPV/cumV:null;}
   ind.vwap=vwap;
   // Supertrend
