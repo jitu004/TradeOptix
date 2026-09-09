@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SignalPro — Crypto Swing Trading Terminal</title>
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="backend/db_client.js"></script>
 <style>
 :root{
   --bg:#0b0e14; --panel:#12161f; --panel2:#171c28; --border:#232a3a;
@@ -123,6 +124,12 @@ select:focus{border-color:var(--yellow)}
       <div class="note" style="margin-top:12px">
         <b style="color:var(--yellow)">SL Guard:</b> Jab aap "Trade Liya" dabate ho, app price ko real-time track karta hai. Price SL ke <b>0.5×ATR</b> ke andar aate hi (hit se pehle) warning + sound bajega.
       </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <h3>📡 Signals History (Cloud DB)</h3>
+      <div id="dbStatus" class="note" style="margin-bottom:8px">DB se connect ho raha hai…</div>
+      <div class="trade-log" id="dbSignals" style="max-height:190px"></div>
     </div>
 
     <div class="panel" style="margin-top:14px">

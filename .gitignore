@@ -22,3 +22,18 @@ Thumbs.db
 # Data dumps (bade CSV files)
 *.csv
 !docs/*.csv
+
+# InsForge & AI agent skills
+.insforge
+.agent
+.agents
+.augment
+.claude
+.cline
+.github/copilot*
+.kilocode
+.qoder
+.qwen
+.roo
+.trae
+.windsurf
