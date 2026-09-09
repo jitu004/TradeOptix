@@ -81,12 +81,13 @@ select:focus,input:focus{border-color:var(--yellow)}
   <div class="logo">TRADE<span>OPTIX</span> <span class="live-dot"></span></div>
   <select id="symbolSel"><option>Loading coins…</option></select>
   <select id="tfSel">
+    <option value="1m">1m</option>
     <option value="15m">15m</option><option value="30m">30m</option>
     <option value="1h">1h</option><option value="2h">2h</option>
     <option value="4h">4h</option><option value="6h">6h</option>
     <option value="12h">12h</option><option value="1d" selected>1D</option>
     <option value="3d">3D</option><option value="1w">1W</option>
-    <option value="1M">1M</option>
+    <option value="1M">1M (Monthly · 1Y view)</option>
   </select>
   <select id="modeSel">
     <option value="swing" selected>Swing (RR 1:3)</option>
@@ -173,8 +174,6 @@ select:focus,input:focus{border-color:var(--yellow)}
       <div id="chart"></div>
       <canvas id="drawCanvas" style="position:absolute;top:0;left:0;pointer-events:none;z-index:10"></canvas>
     </div>
-    <div class="section-title">Equity Curve (Backtest)</div>
-    <canvas id="equityChart"></canvas>
     <div class="section-title">💱 Currency Converter (Real-Time)</div>
     <div class="conv-row">
       <input type="number" id="convAmt" value="100" min="0">
@@ -205,6 +204,10 @@ select:focus,input:focus{border-color:var(--yellow)}
       <h3>Trade Log (Last 30)</h3>
       <div class="trade-log" id="tradeLog"><div style="color:var(--muted);text-align:center;padding:20px">Run a backtest — trades will appear here</div></div>
     </div>
+    <div class="panel" style="margin-top:14px">
+      <h3>Equity Curve (Backtest)</h3>
+      <canvas id="equityChart"></canvas>
+    </div>
   </div>
 </div>
 
@@ -221,7 +224,7 @@ const CFG={emaF:20,emaS:50,emaL:200,rsiN:14,rsiBuy:70,rsiSell:30,atrN:14,slAtr:2
   stPeriod:10,stMult:3.0,
   modes:{swing:{rr:3.0,label:'SWING (1:3)',tps:[1,2,3]},scalp:{rr:1.5,label:'SCALP (1:1.5)',tps:[1,1.25,1.5]}},
   warnAtr:0.5};
-const MPB={'15m':15,'30m':30,'1h':60,'2h':120,'4h':240,'6h':360,'12h':720,'1d':1440,'3d':4320,'1w':10080,'1M':43200};
+const MPB={'1m':1,'15m':15,'30m':30,'1h':60,'2h':120,'4h':240,'6h':360,'12h':720,'1d':1440,'3d':4320,'1w':10080,'1M':43200};
 const FEE_RT=0.002;
 const VERIFIED={'BTCUSDT':{win:46.7,pf:1.34,ret:24.4,n:30,hold:14.9,dd:-26.9},
   'ETHUSDT':{win:61.5,pf:2.31,ret:170.8,n:26,hold:17.9,dd:-22.2},
@@ -287,11 +290,14 @@ function buildSignal(dir,i,atrVal){
   else{s.sl=entry+risk;s.tp1=entry-m.tps[0]*risk;s.tp2=entry-m.tps[1]*risk;s.tp3=entry-m.tps[2]*risk;}
   return s;}
 
-function findLatestSignal(){const n=klines.length,lb=Math.max(51,n-15);
+function findLatestSignal(){const n=klines.length,lb=Math.max(201,n-15);
   for(let i=n-2;i>=lb;i--){
-    if(ind.eF[i]>ind.eS[i]&&ind.r[i-1]<CFG.rsiBuy&&ind.r[i]>=CFG.rsiBuy&&ind.c[i]>ind.eF[i])
+    const v=ind.vwap[i];
+    if(ind.eF[i]>ind.eS[i]&&ind.eS[i]>ind.eL[i]&&ind.st[i]!=null&&ind.stDir[i]===1
+      &&v!=null&&ind.c[i]>v&&ind.r[i-1]<CFG.rsiBuy&&ind.r[i]>=CFG.rsiBuy&&ind.c[i]>ind.eF[i])
       return buildSignal(1,i,ind.a[i]);
-    if(ind.eF[i]<ind.eS[i]&&ind.r[i-1]>CFG.rsiSell&&ind.r[i]<=CFG.rsiSell&&ind.c[i]<ind.eF[i])
+    if(ind.eF[i]<ind.eS[i]&&ind.eS[i]<ind.eL[i]&&ind.st[i]!=null&&ind.stDir[i]===-1
+      &&v!=null&&ind.c[i]<v&&ind.r[i-1]>CFG.rsiSell&&ind.r[i]<=CFG.rsiSell&&ind.c[i]<ind.eF[i])
       return buildSignal(-1,i,ind.a[i]);}
   return null;}
 
@@ -370,12 +376,12 @@ let chart,candleSeries,drawCanvas;
 function removeOverlays(){Object.keys(overlays).forEach(k=>{if(overlays[k]){try{chart.removeSeries(overlays[k]);}catch(e){}overlays[k]=null;}});}
 function initChart(){if(chart)chart.remove();
   chart=LightweightCharts.createChart(document.getElementById('chart'),{
-    layout:{background:{color:'#0b0e14'},textColor:'#8b93a7',fontFamily:'monospace'},
-    grid:{vertLines:{color:'#161b26'},horzLines:{color:'#161b26'}},
-    rightPriceScale:{borderColor:'#232a3a'},timeScale:{borderColor:'#232a3a',timeVisible:true},
-    crosshair:{mode:0,vertLine:{color:'#4f9cf955'},horzLine:{color:'#4f9cf955'}}});
-  candleSeries=chart.addCandlestickSeries({upColor:'#16c784',downColor:'#ea3943',
-    borderVisible:false,wickUpColor:'#16c784',wickDownColor:'#ea3943'});
+    layout:{background:{color:'#0b0e11'},textColor:'#848e9c',fontFamily:'-apple-system,Segoe UI,sans-serif'},
+    grid:{vertLines:{color:'#1c2127'},horzLines:{color:'#1c2127'}},
+    rightPriceScale:{borderColor:'#2b3139'},timeScale:{borderColor:'#2b3139',timeVisible:true,secondsVisible:false},
+    crosshair:{mode:0,vertLine:{color:'#5e6673',labelBackgroundColor:'#2b3139'},horzLine:{color:'#5e6673',labelBackgroundColor:'#2b3139'}}});
+  candleSeries=chart.addCandlestickSeries({upColor:'#0ecb81',downColor:'#f6465d',
+    borderVisible:false,wickUpColor:'#0ecb81',wickDownColor:'#f6465d'});
   new ResizeObserver(()=>chart.applyOptions({width:document.getElementById('chart').clientWidth,
     height:document.getElementById('chart').clientHeight})).observe(document.getElementById('chart'));
   chart.timeScale().subscribeVisibleLogicalRangeChange(()=>setTimeout(redrawLines,10));}
@@ -386,7 +392,7 @@ function buildOverlays(){
   if(indOn.vol){
     chart.priceScale('').applyOptions({scaleMargins:{top:0.72,bottom:0}});
     overlays.vol=chart.addHistogramSeries({priceScaleId:'',lastValueVisible:false,priceLineVisible:false});
-    overlays.vol.setData(klines.map((k,i)=>({time:t[i],value:k.v,color:k.c>=k.o?'rgba(22,199,132,.45)':'rgba(234,57,67,.45)'})));}
+    overlays.vol.setData(klines.map((k,i)=>({time:t[i],value:k.v,color:k.c>=k.o?'rgba(14,203,129,.4)':'rgba(246,70,93,.4)'})));}
   if(indOn.e20){overlays.e20=chart.addLineSeries({color:'#4f9cf9',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
     overlays.e20.setData(t.map((tt,i)=>({time:tt,value:ind.eF[i]})));}
   if(indOn.e50){overlays.e50=chart.addLineSeries({color:'#f0b90b',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
@@ -692,53 +698,30 @@ setInterval(async()=>{
 document.addEventListener('keydown',e=>{
   if(e.key.toLowerCase()==='t')document.getElementById('btnTrack').click();});
 
-/* ================= INSFORGE DB SYNC (with built-in fallback) ================= */
-let dbTradeSaved=false;
-if(!window.INSFORGE_URL||String(window.INSFORGE_URL).indexOf('YOUR-PROJECT')>-1){
-  window.INSFORGE_URL='https://r3pjdfkc.insforge.site';
-  window.INSFORGE_ANON_KEY='anon_d4e349cf0f19d19a9a53315e4b667de23297b526c873fe3c4702b22792724c8c';}
-if(typeof window.dbGet==='undefined'){
-  window.dbGet=async function(table,query){
-    const r=await fetch(`${window.INSFORGE_URL}/rest/v1/${table}?${query||''}`,{
-      headers:{'apikey':window.INSFORGE_ANON_KEY,'Authorization':`Bearer ${window.INSFORGE_ANON_KEY}`}});
-    if(!r.ok)throw new Error('dbGet '+r.status);
-    return r.json();};
-  window.dbPost=async function(table,row){
-    const r=await fetch(`${window.INSFORGE_URL}/rest/v1/${table}`,{method:'POST',
-      headers:{'apikey':window.INSFORGE_ANON_KEY,'Authorization':`Bearer ${window.INSFORGE_ANON_KEY}`,
-        'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify(row)});
-    return r.ok;};}
-function dbConfigured(){return window.INSFORGE_URL && window.INSFORGE_URL.indexOf('YOUR-PROJECT')===-1;}
+/* ================= PUBLIC SIGNALS FEED =================
+   No keys in the app - backend lives in InsForge.
+   Deploy backend/public_signals.py as a public function to activate. */
 async function loadDbSignals(){
   const st=document.getElementById('dbStatus'),list=document.getElementById('dbSignals');
-  if(!dbConfigured()){st.innerHTML='⚠️ DB not configured.';return;}
-  try{
-    const rows=await dbGet('signals','select=*&order=signal_time.desc&limit=20');
-    if(!rows.length){st.textContent='✅ DB Connected — no signals yet (Python engine will add them).';return;}
-    st.textContent=`✅ DB Connected — ${rows.length} recent signals`;
-    list.innerHTML=rows.map(s=>{const d=new Date(s.signal_time);
-      return `<div class="trade-row"><span style="color:${s.direction===1?'var(--green)':'var(--red)'}">${s.direction===1?'LONG':'SHORT'}</span>
-      <span>${s.symbol.replace('USDT','')}</span><span>@ ${fmt(s.entry_price)}</span>
-      <span style="color:var(--muted)">${d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})} ${d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</span>
-      <span class="badge ${s.status==='ACTIVE'?'badge-strong':'badge-mid'}">${s.status}</span></div>`;}).join('');
-  }catch(e){st.textContent='❌ DB error: '+e.message;}}
-async function saveTrackedTradeToDb(){
-  if(!dbConfigured()||!activeSignal||dbTradeSaved)return;
-  dbTradeSaved=true;
-  await dbPost('tracked_trades',{symbol:sym,direction:activeSignal.dir,entry_price:activeSignal.entry,
-    stop_loss:activeSignal.sl,take_profit:activeSignal.tp3,status:'OPEN'});}
-async function saveAlertToDb(type,price,msg){
-  if(!dbConfigured())return;
-  await dbPost('alerts',{symbol:sym,alert_type:type,price_at_alert:price,message:msg});}
-const _origCheckSL=checkSLGuard;
-checkSLGuard=function(price){
-  const wl=warnLevel;_origCheckSL(price);
-  if(tracking&&activeSignal&&warnLevel>wl){
-    if(warnLevel===1)saveAlertToDb('SL_WARNING',price,`Price within 0.5xATR of SL — ${sym}`);
-    if(warnLevel===2)saveAlertToDb('SL_HIT',price,`Stop loss hit — ${sym}`);}
-  if(tracking&&activeSignal)saveTrackedTradeToDb();};
-document.getElementById('btnTrack').addEventListener('click',()=>{dbTradeSaved=false;});
+  st.textContent='Loading signals feed...';
+  const urls=['/api/signals','https://r3pjdfkc.insforge.site/api/signals'];
+  for(const url of urls){
+    try{
+      const r=await fetch(url);
+      if(!r.ok)continue;
+      const rows=await r.json();
+      if(!Array.isArray(rows)){st.textContent='Unexpected feed format.';return;}
+      if(!rows.length){st.textContent='Feed live - no signals yet. Engine will add them.';return;}
+      st.textContent='Live feed - '+rows.length+' recent signals';
+      list.innerHTML=rows.map(s=>{const d=new Date(s.signal_time||Date.now());
+        return `<div class="trade-row"><span style="color:${s.direction===1?'var(--green)':'var(--red)'}">${s.direction===1?'LONG':'SHORT'}</span>
+        <span>${String(s.symbol).replace('USDT','')}</span><span>@ ${fmt(+s.entry_price)}</span>
+        <span style="color:var(--muted)">${d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})} ${d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</span>
+        <span class="badge ${s.status==='ACTIVE'?'badge-strong':'badge-mid'}">${s.status}</span></div>`;}).join('');
+      return;
+    }catch(e){}}
+  st.innerHTML='Signals feed not deployed yet. Deploy <b>backend/public_signals.py</b> in InsForge Functions. App works fully without it.';
+}
 
 /* ================= TREND LINE DRAWING ================= */
 let drawMode=false,pendingPoint=null,trendLines=[];
