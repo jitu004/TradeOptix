@@ -120,6 +120,8 @@ select:focus,input:focus{border-color:var(--yellow)}
           <div class="sig-line"><span class="lbl">Signal Type:</span><b id="sigType2">—</b></div>
           <div class="sig-line"><span class="lbl">Leverage:</span><b id="sigLev" style="color:var(--blue)">Cross (10X)</b></div>
           <div class="sig-line"><span class="lbl">Risk:Reward:</span><b style="color:var(--yellow)">1:3</b></div>
+          <div class="sig-line"><span class="lbl">Scale Out:</span><b style="color:var(--green)">50% TP1 · 30% TP2 · 20% TP3</b></div>
+          <div class="sig-line"><span class="lbl">SL after TP1:</span><b style="color:var(--blue)">Move to breakeven</b></div>
           <div class="sig-sec en">Entry Targets:</div>
           <div class="sig-target en">1) <span id="lvEntry">—</span></div>
           <div class="sig-sec tp">Take-Profit Targets:</div>
@@ -130,11 +132,15 @@ select:focus,input:focus{border-color:var(--yellow)}
           <div class="sig-target sl">1) <span id="lvSL">—</span></div>
         </div>
       </div>
-      <button class="btn btn-yellow btn-block" id="btnTrack">🛡️ Arm SL Guard — I'm In</button>
+      <button class="btn btn-yellow btn-block" id="btnTrack">🚀 TAKE TRADE — Arm SL Guard</button>
       <button class="btn btn-gray btn-block" id="btnNotify">🔔 Enable Notifications</button>
-      <div class="note" style="margin-bottom:0">
-        <b style="color:var(--yellow)">Ladder:</b> profits scale out in 3 steps — 50% at TP1, 30% at TP2, 20% at TP3. Move SL to breakeven after TP1.<br>
-        <b style="color:var(--yellow)">SL Guard:</b> warns you <b>before</b> the stop loss is hit.
+      <div id="sigCheck" style="display:none;text-align:left;margin-top:12px;background:rgba(0,0,0,.28);border-radius:8px;padding:10px 12px">
+        <div style="font-size:11px;color:var(--yellow);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-weight:800">⚡ Confluence Check</div>
+        <div id="chkTrend" style="font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border)">—</div>
+        <div id="chkST" style="font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border)">—</div>
+        <div id="chkVWAP" style="font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border)">—</div>
+        <div id="chkRSI" style="font-size:12px;padding:4px 0">—</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:6px">All 4 green = high-probability setup. Any red = wait for better entry.</div>
       </div>
     </div>
 
@@ -457,7 +463,26 @@ function renderSignal(){
     const pe=document.getElementById('kvPnl');
     pe.textContent=(pnl>=0?'+':'')+(pnl*100).toFixed(2)+'%';
     pe.style.color=pnl>=0?'var(--green)':'var(--red)';
-    ss.textContent+= age>8?' · ⚠️ STALE (old signal)':'';}}
+    ss.textContent+= age>8?' · ⚠️ STALE (old signal)':'';
+  }
+  const chkEl=document.getElementById('sigCheck');
+  if(chkEl){
+    if(!activeSignal){chkEl.style.display='none';}
+    else{
+      chkEl.style.display='block';
+      const ci=n-2,long=activeSignal.dir===1;
+      const tOk=long?(ind.eF[ci]>ind.eS[ci]&&ind.eS[ci]>ind.eL[ci]):(ind.eF[ci]<ind.eS[ci]&&ind.eS[ci]<ind.eL[ci]);
+      const stOk=ind.st[ci]!=null&&ind.stDir[ci]===(long?1:-1);
+      const v=ind.vwap[ci];
+      const vOk=v!=null&&(long?ind.c[ci]>v:ind.c[ci]<v);
+      const rOk=long?(ind.r[ci-1]<70&&ind.r[ci]>=70):(ind.r[ci-1]>30&&ind.r[ci]<=30);
+      const setChk=(id2,ok,txt)=>{const e2=document.getElementById(id2);if(e2)e2.innerHTML=`<span style="color:${ok?'var(--green)':'var(--red)'};font-weight:700">${ok?'✅ PASS':'❌ WAIT'}</span> <span style="color:var(--muted)">${txt}</span>`;};
+      setChk('chkTrend',tOk,long?'EMA 20 > 50 > 200':'EMA 20 < 50 < 200');
+      setChk('chkST',stOk,'Supertrend '+(long?'BULLISH':'BEARISH'));
+      setChk('chkVWAP',vOk,'Price '+(long?'above':'below')+' VWAP');
+      setChk('chkRSI',rOk,'RSI '+(long?'cross >70':'cross <30')+' (now '+ind.r[ci].toFixed(1)+')');
+    }
+  }}
 
 function renderVerified(){
   const v=VERIFIED[sym];
