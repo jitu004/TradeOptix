@@ -90,5 +90,32 @@ App kholo → left panel me **"📡 Signals History (Cloud DB)"** — "✅ DB Co
 ## Strategy
 EMA(20/50) trend + RSI(14) 70/30 momentum cross + ATR risk mgmt. 5-saal backtest report: fees included, ETH 61.5% win rate.
 
+## v4 Upgrade — 10 signals/day + TRUE/FALSE + weekly + logs + sentiment (2026-09-10)
+
+### Kya naya hai
+- **~10 signals/day quota:** engine pehle 1D full-confluence (T1) deta hai, phir 4H tiered-relax (T2→T4) se quota fill karta hai. Har signal pe tier badge.
+- **TRUE/FALSE tracking:** `signal_resolver` har 5 min me ACTIVE signals check karta hai — TP hit → result=true ✅, SL hit → result=false ❌, pnl% DB me.
+- **Weekly Report panel:** last 7 din — total, true %, false %, kaunse-kaunse hue.
+- **Live Logs panel:** engine/resolver/backtest ka har action `engine_logs` table me — frontend har 3 sec me dikhata hai.
+- **Server-side backtest:** "Run Backtest" button ab InsForge function call karta hai — compute kabhi browser me nahi hota. Results `backtest_runs` me save.
+- **Market Sentiment (v4.1):** BTC momentum, trend, market breadth, funding rate, volatility — 5 components se 0–100 score. Engine isko quality gate ki tarah use karta hai (extreme greed → sirf SHORT fade, extreme fear → sirf LONG dip-buy). 4H quota-fill signals ke liye **1D trend alignment (MTF)** zaroori hai.
+
+### Deploy steps (v3 ke upar)
+```bash
+cd ~/TradeOptix && unzip -o ~/Downloads/TradeOptix_v4.zip
+git add . && git commit -m "v4: quota engine + resolver TRUE/FALSE + weekly + logs + sentiment"
+git push && npx @insforge/cli deployments deploy
+```
+1. **SQL Editor:** `backend/schema_v4.sql` paste → Run (ALTER + 3 nayi tables: engine_logs, backtest_runs, sentiment)
+2. **Functions:**
+   - `signal_engine` → code REPLACE karo v4.1 wale se — schedule 30 min (same)
+   - NEW `signal_resolver` — `backend/signal_resolver.js` — schedule **5 min**
+   - NEW `public_weekly` — public ON
+   - NEW `public_logs` — public ON
+   - NEW `server_backtest` — public ON
+   - NEW `market_sentiment` — `backend/market_sentiment.js` — schedule **15 min**, public ON
+   - Env vars sab me: `INSFORGE_URL` + `INSFORGE_SERVICE_KEY`
+3. Verify: site pe 3 naye panels — Weekly Report, Engine Logs, Market Sentiment
+
 ## ⚠️ Disclaimer
 Education/analytics ke liye hai, financial advice nahi. Backtest ≠ future guarantee. Kabhi bina SL ke trade mat karo.

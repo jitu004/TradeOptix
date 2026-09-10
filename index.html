@@ -161,7 +161,7 @@ select:focus,input:focus{border-color:var(--yellow)}
   <div>
     <div class="panel">
       <h3>Live Backtest Result <span id="btCoinLbl" style="color:var(--yellow)"></span></h3>
-      <button class="btn btn-green" id="btnBacktest" style="width:100%;margin:0 0 10px">⚡ Run Backtest (Live Data)</button>
+      <button class="btn btn-green" id="btnBacktest" style="width:100%;margin:0 0 10px">⚡ Run Backtest (Server — InsForge)</button>
       <div class="stat-grid">
         <div class="stat"><div class="v" id="btWin">—</div><div class="k">Win Rate</div></div>
         <div class="stat"><div class="v" id="btPf">—</div><div class="k">Profit Factor</div></div>
@@ -189,6 +189,9 @@ select:focus,input:focus{border-color:var(--yellow)}
   <div class="panel"><h3>📉 Top Losing (24h)</h3><div id="losersList" style="font-size:12px;color:var(--muted)">Loading…</div></div>
   <div class="panel"><h3>🆕 New Listing</h3><div id="newList" style="font-size:12px;color:var(--muted)">Loading…</div></div>
   <div class="panel"><h3>📡 Signals History (Live)</h3><div id="dbStatus" class="note" style="margin-bottom:8px">Connecting…</div><div class="trade-log" id="dbSignals" style="max-height:230px"></div></div>
+  <div class="panel"><h3>📊 Weekly Report — TRUE/FALSE</h3><div id="weeklyStats" style="margin-bottom:8px">Loading…</div><div class="trade-log" id="weeklyList" style="max-height:230px"></div></div>
+  <div class="panel"><h3>📜 Engine Logs (Live)</h3><div class="trade-log" id="engineLogs" style="max-height:280px;font-family:var(--mono);font-size:11px">Waiting for logs…</div></div>
+  <div class="panel"><h3>🌡️ Market Sentiment</h3><div id="sentPanel">Loading…</div></div>
 </div>
 <style>@media(max-width:1200px){.main ~ div[style*="repeat(4"]{grid-template-columns:repeat(2,1fr)!important}}@media(max-width:700px){.main ~ div[style*="repeat(4"]{grid-template-columns:1fr!important}}</style>
 
@@ -918,5 +921,6 @@ setInterval(loadSentiment,600000);
 setInterval(()=>loadMarketPanels(),300000);
 setInterval(()=>loadFx(),3600000);
 </script>
+<script src="v4.js"></script>
 </body>
 </html>
