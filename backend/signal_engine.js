@@ -407,37 +407,48 @@ export default async function handler(_req: Request, _ctx: unknown): Promise<Res
       } catch (e) { logs.push(`WARN ${sym} 1d: ${String(e)}`); return null; }
     });
 
-    // PASS 2: quota fill — 4H setup + 1D trend alignment (MTF) + sentiment gate, tiered relax T2→T4
-    for (let tier = 2; tier <= (qualityOnly ? 2 : 4) && madeToday < quotaToday; tier++) {
-      const cands: { sym: string; sig: any; aligned: boolean }[] = [];
+    // PASS 2: quota fill — SINGLE PASS per coin: 4h klines cache, tier escalate 2→4, phir 1h fallback
+    {
       const skips = new Set([...doneToday, ...made.map((m) => m.split(" ")[0]), ...pumpSet]);
+      const maxTier = qualityOnly ? 2 : 4;
+      const cands: { sym: string; sig: any; aligned: boolean; tf: string; tier: number }[] = [];
       const found = await scanBatch(coins.filter((s2) => !skips.has(s2)), async (sym) => {
         try {
-          let sig = detect(await fetchKlines(sym, "4h"), tier, strat);
-          let tf = "4h";
-          if (!sig && tier >= 3) { sig = detect(await fetchKlines(sym, "1h"), tier, strat); tf = "1h"; }
+          const kl4h = await fetchKlines(sym, "4h");
+          let sig = null, tierUsed = 0, tf = "4h";
+          for (let t = 2; t <= maxTier; t++) {
+            sig = detect(kl4h, t, strat);
+            if (sig) { tierUsed = t; break; }
+          }
+          if (!sig) {
+            const kl1h = await fetchKlines(sym, "1h");
+            for (let t = 3; t <= maxTier; t++) {
+              sig = detect(kl1h, t, strat);
+              if (sig) { tierUsed = t; tf = "1h"; break; }
+            }
+          }
           if (!sig) return null;
           const t1 = await t1d(sym);
-          if (t1 !== sig.dir) { logs.push(`-- ${sym}: 4h ${sig.dir === 1 ? "LONG" : "SHORT"} but 1D trend mismatch (MTF block)`); return null; }
+          if (t1 !== sig.dir) { logs.push(`-- ${sym}: ${tf} ${sig.dir === 1 ? "LONG" : "SHORT"} but 1D trend mismatch (MTF block)`); return null; }
           if (!sentimentAllows(sentEff, sig.dir) || !regimeAllows(sent.regime, sig.dir)) return null;
           const aligned = (sentEff >= 55 && sig.dir === 1) || (sentEff <= 45 && sig.dir === -1);
           if (aligned) sig.score *= 1.15;
-          return { sym, sig, aligned, tf };
+          return { sym, sig, aligned, tf, tier: tierUsed };
         } catch { return null; }
       });
       cands.push(...found);
       cands.sort((a, b) => b.sig.score - a.sig.score);
-      for (const { sym, sig, aligned, tf } of cands) {
+      for (const { sym, sig, aligned, tf, tier } of cands) {
         if (madeToday >= quotaToday) break;
-        await insert(sym, tf || "4h", sig, tier, aligned);
+        await insert(sym, tf, sig, tier, aligned);
       }
     }
   }
 
   if (pumpSet.size) await log("WARN", `🚨 Pump-filter: ${pumpSet.size} coins skipped (12%+ move — trap zone)`);
-  const msg = `Engine run done in ${Date.now() - started}ms — sentiment ${sent.score} ${sent.label}, ${madeToday}/${QUOTA_PER_DAY} today. New: ${made.join(", ") || "none"}`;
+  const msg = `Engine run done in ${Date.now() - started}ms — sentiment ${sent.score} ${sent.label}, ${madeToday}/${quotaToday} today. New: ${made.join(", ") || "none"}`;
   await log("INFO", msg);
-  return new Response(JSON.stringify({ sentiment: sent, quota: `${madeToday}/${QUOTA_PER_DAY}`, new_signals: made, at: new Date().toISOString(), logs }, null, 2), {
+  return new Response(JSON.stringify({ sentiment: sent, quota: `${madeToday}/${quotaToday}`, new_signals: made, at: new Date().toISOString(), logs }, null, 2), {
     status: 200, headers: { "Content-Type": "application/json" },
   });
 }

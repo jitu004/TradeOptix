@@ -88,27 +88,57 @@ function sigToast(s) {
   setTimeout(() => { el.style.transition = 'opacity .5s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 500); }, 9000);
 }
 
-/* --- Weekly report: week me kitne signals, kitne % true, kaunse-kaunse --- */
+/* --- Weekly report: click Total/True/False -> full trade details --- */
+let weeklyCache = [];
+let weeklyFilter = 'all';
+
+function renderWeeklyDetail() {
+  const el = document.getElementById('weeklyDetail');
+  if (!el) return;
+  let rows = weeklyCache;
+  if (weeklyFilter === 'true') rows = rows.filter(x => x.result === true);
+  else if (weeklyFilter === 'false') rows = rows.filter(x => x.result === false);
+  else if (weeklyFilter === 'active') rows = rows.filter(x => x.status === 'ACTIVE');
+  const fmt = v => { const n = +v; return isFinite(n) ? (n >= 1 ? n.toLocaleString('en-US', { maximumFractionDigits: 2 }) : n.toPrecision(4)) : v; };
+  const chip = f => `cursor:pointer;border-bottom:${weeklyFilter === f ? '2px solid var(--yellow)' : '2px solid transparent'};padding-bottom:2px`;
+  const head = document.getElementById('weeklyStats');
+  if (head && weeklyCache.length) {
+    const t = weeklyCache.filter(x => x.status !== 'ACTIVE');
+    const tt = t.filter(x => x.result === true).length;
+    const ff = t.length - tt;
+    const act = weeklyCache.length - t.length;
+    head.innerHTML = `<div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:8px">
+      <div class="stat" style="${chip('all')}" onclick="filterWeekly('all')"><div class="v">${weeklyCache.length}</div><div class="k">All</div></div>
+      <div class="stat" style="${chip('active')}" onclick="filterWeekly('active')"><div class="v" style="color:var(--yellow)">${act}</div><div class="k">Active</div></div>
+      <div class="stat" style="${chip('true')}" onclick="filterWeekly('true')"><div class="v" style="color:var(--green)">${tt}</div><div class="k">True ✅</div></div>
+      <div class="stat" style="${chip('false')}" onclick="filterWeekly('false')"><div class="v" style="color:var(--red)">${ff}</div><div class="k">False ❌</div></div></div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Click any number to filter trades below</div>`;
+  }
+  el.innerHTML = rows.slice(0, 30).map(x => {
+    const st = x.status === 'ACTIVE' ? '<span class="badge badge-strong">ACTIVE</span>'
+      : x.result === true ? '<span class="badge" style="background:#12361f;color:#3fb950">TRUE ✅</span>'
+      : '<span class="badge" style="background:#3d1d1d;color:#f85149">FALSE ❌</span>';
+    return `<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:6px">
+        <b style="color:${x.direction === 1 ? 'var(--green)' : 'var(--red)'}">${x.direction === 1 ? 'LONG' : 'SHORT'} ${String(x.symbol).replace('USDT', '')}</b>
+        <span style="color:var(--muted);font-size:10px">${(x.timeframe || '').toUpperCase()}${x.tier > 1 ? ' T' + x.tier : ''}${x.pattern ? ' \u{1F56F}' + x.pattern : ''}</span>${st}
+      </div>
+      <div style="font-family:var(--mono);color:var(--muted)">Entry <b style="color:var(--yellow)">${fmt(x.entry_price)}</b> \u00B7 SL <b style="color:var(--red)">${fmt(x.stop_loss)}</b> \u00B7 TP <b style="color:var(--green)">${fmt(x.take_profit)}</b>${x.pnl_pct != null ? ` \u00B7 PnL <b style="color:${x.pnl_pct > 0 ? 'var(--green)' : 'var(--red)'}">${x.pnl_pct}%</b>` : ''}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px">${new Date(x.signal_time).toLocaleString('en-GB')}${x.resolved_at ? ' \u2192 ' + new Date(x.resolved_at).toLocaleString('en-GB') : ''}</div>
+    </div>`;
+  }).join('') || '<div style="color:var(--muted);text-align:center;padding:10px">No signals in this filter</div>';
+}
+window.filterWeekly = (f) => { weeklyFilter = f; renderWeeklyDetail(); };
+
 async function loadWeekly() {
-  const el = document.getElementById('weeklyStats'), list = document.getElementById('weeklyList');
+  const el = document.getElementById('weeklyStats');
   if (!el) return;
   try {
     const d = await (await fetch(SV_BASE + '/public_weekly')).json();
     if (d.error) throw new Error(d.error);
-    el.innerHTML = `<div class="stat-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px">
-      <div class="stat"><div class="v">${d.total}</div><div class="k">Total</div></div>
-      <div class="stat"><div class="v" style="color:var(--green)">${d.trueCount}</div><div class="k">True ✅</div></div>
-      <div class="stat"><div class="v" style="color:var(--red)">${d.falseCount}</div><div class="k">False ❌</div></div></div>
-    <div style="height:8px;background:#3d1d1d;border-radius:4px;overflow:hidden;margin-bottom:8px"><div style="height:100%;background:var(--green);width:${d.truePct}%"></div></div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">True rate: <b style="color:var(--text)">${d.truePct}%</b> · Pending: ${d.pending} · Last 7 days</div>`;
-    list.innerHTML = (d.list || []).filter(s => s.status !== 'ACTIVE').map(s => {
-      const r = new Date(s.resolved_at || s.signal_time);
-      return `<div class="trade-row"><span style="color:${s.direction === 1 ? 'var(--green)' : 'var(--red)'}">${s.direction === 1 ? 'LONG' : 'SHORT'}</span>
-      <span>${String(s.symbol).replace('USDT', '')}</span>
-      <span style="color:${s.result ? 'var(--green)' : 'var(--red)'}">${s.result ? 'TRUE' : 'FALSE'} ${s.pnl_pct != null ? ((s.pnl_pct > 0 ? '+' : '') + Number(s.pnl_pct).toFixed(2) + '%') : ''}</span>
-      <span style="color:var(--muted)">${r.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></div>`;
-    }).join('') || '<div style="color:var(--muted);text-align:center;padding:12px">No resolved signals yet this week</div>';
-  } catch (e) { el.innerHTML = '<div class="note">Weekly report API is not deployed yet — please deploy backend/public_weekly.js.</div>'; }
+    weeklyCache = d.list || [];
+    renderWeeklyDetail();
+  } catch (e) { el.innerHTML = '<div class="note">Weekly API not deployed yet.</div>'; }
 }
 
 /* --- Live engine logs (har 3 sec poll) --- */
