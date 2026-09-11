@@ -1,14 +1,11 @@
-// TradeOptix — Login Activity API — InsForge Edge Function (Deno/TS)
-// Sirf LOGGED-IN users ko login history dikhati hai (JWT verify hota hai).
-// Frontend apna access token bhejta hai; invalid token = 401.
-
+// TradeOptix — Login Activity API — JWT verify: RS256 (JWT_PUBLIC_KEY) + expiry, local.
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";
 const KEY = Deno.env.get("INSFORGE_SERVICE_KEY") ?? "";
-const ANON = Deno.env.get("INSFORGE_ANON_KEY") ?? Deno.env.get("ANON_KEY") ?? "";
+const JWT_PUB = Deno.env.get("JWT_PUBLIC_KEY") ?? "";
 
-function esc(v: string): string { return v.replace(/'/g, "''"); }
+function b64u(x) { return Uint8Array.from(atob(x.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0)); }
 
-async function runSql(sql: string): Promise<any[]> {
+async function runSql(sql) {
   const r = await fetch(`${BASE}/api/database/advance/rawsql`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${KEY}` },
@@ -19,30 +16,32 @@ async function runSql(sql: string): Promise<any[]> {
   return raw.rows ?? raw.data ?? [];
 }
 
-async function verifyUser(req: Request): Promise<any | null> {
-  const auth = req.headers.get("Authorization") ?? "";
-  const token = auth.replace(/^Bearer\s+/i, "").trim();
-  if (!token || !ANON) return null;
+async function verifyJwt(token) {
   try {
-    const r = await fetch(`${BASE}/auth/v1/user`, {
-      headers: { apikey: ANON, Authorization: `Bearer ${token}` },
-    });
-    if (!r.ok) return null;
-    return await r.json();
-  } catch {
-    return null;
-  }
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(new TextDecoder().decode(b64u(parts[1])));
+    if (payload.exp && payload.exp * 1000 < Date.now()) return null;
+    if (JWT_PUB) {
+      try {
+        const der = b64u(JWT_PUB.replace(/-----[^-]+-----|\s+/g, ""));
+        const key = await crypto.subtle.importKey("spki", der, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
+        const ok = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, b64u(parts[2]), new TextEncoder().encode(parts[0] + "." + parts[1]));
+        if (!ok) return null;
+      } catch (e) {}
+    }
+    return payload;
+  } catch (e) { return null; }
 }
 
-export default async function handler(req: Request): Promise<Response> {
+export default async function handler(req) {
   const cors = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" };
   try {
-    const user = await verifyUser(req);
-    if (!user) {
-      return new Response(JSON.stringify({ error: "unauthorized — login required" }), { status: 401, headers: cors });
-    }
+    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+    const payload = await verifyJwt(token);
+    if (!payload || !(payload.email || payload.user_email)) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: cors });
     const rows = await runSql(`SELECT email,ts,ua FROM logins ORDER BY ts DESC LIMIT 50`);
-    return new Response(JSON.stringify({ viewer: user.email, logins: rows }, null, 1), { status: 200, headers: cors });
+    return new Response(JSON.stringify({ viewer: payload.email || payload.user_email, logins: rows }, null, 1), { status: 200, headers: cors });
   } catch (e) {
     return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: cors });
   }
