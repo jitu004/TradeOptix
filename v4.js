@@ -298,7 +298,22 @@ function startApp() {
 
 /* --- boot: session check --- */
 (async () => {
-  if (!sb) { startApp(); return; }                    // ANON_KEY nahi dali — gate skip (dev mode)
+  if (!sb) {
+    if (!ANON_KEY.includes('PASTE_')) {
+      // ANON_KEY set hai par auth library load nahi hui — gate KABHI bypass nahi hoga
+      lockApp();
+      document.body.insertAdjacentHTML('beforeend', `
+      <div style="position:fixed;inset:0;z-index:9999;background:#0b0e11;display:flex;align-items:center;justify-content:center">
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;padding:32px 36px;width:360px;color:#e6edf3;text-align:center">
+          <div style="font-size:20px;font-weight:800;margin-bottom:8px">⚠️ Auth library load nahi hui</div>
+          <div style="font-size:12px;color:#8b949e;margin-bottom:16px">Network/ad-blocker ne CDN block kiya hai. Page refresh karo ya ad-blocker band karo.</div>
+          <button onclick="location.reload()" style="background:#f0b90b;border:none;color:#000;font-weight:800;padding:10px 24px;border-radius:8px;cursor:pointer">Retry</button>
+        </div>
+      </div>`);
+      return;
+    }
+    startApp(); return;                                 // sirf dev mode (placeholder key) me gate skip
+  }
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     const ok = await checkApproval(String(session.user.email).toLowerCase());

@@ -4,7 +4,7 @@
 
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";
 const KEY = Deno.env.get("INSFORGE_SERVICE_KEY") ?? "";
-const ANON = Deno.env.get("INSFORGE_ANON_KEY") ?? "";
+const ANON = Deno.env.get("INSFORGE_ANON_KEY") ?? Deno.env.get("ANON_KEY") ?? "";
 
 function esc(v: string): string { return v.replace(/'/g, "''"); }
 

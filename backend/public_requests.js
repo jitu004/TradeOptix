@@ -3,7 +3,7 @@
 
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";
 const KEY = Deno.env.get("INSFORGE_SERVICE_KEY") ?? "";
-const ANON = Deno.env.get("INSFORGE_ANON_KEY") ?? "";
+const ANON = Deno.env.get("INSFORGE_ANON_KEY") ?? Deno.env.get("ANON_KEY") ?? "";
 const ADMIN = (Deno.env.get("ADMIN_EMAILS") ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 
 async function runSql(sql: string): Promise<any[]> {
