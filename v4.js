@@ -39,6 +39,7 @@ async function runBT() {
 /* --- Signals History: TRUE ✅ / FALSE ❌ badges ke saath --- */
 async function loadDbSignals() {
   const st = document.getElementById('dbStatus'), list = document.getElementById('dbSignals');
+  if (!st || !list) return;
   try {
     const r = await fetch(SV_BASE + '/public_signals');
     if (!r.ok) throw 0;
