@@ -22,10 +22,10 @@ select:focus,input:focus{border-color:var(--yellow)}
 #livePrice{font-size:22px;font-weight:700}
 #livePrice{font-size:28px;font-weight:800;letter-spacing:1.5px;text-shadow:0 0 22px rgba(240,185,11,.3)}
 #priceChg{font-size:12px;font-weight:800;letter-spacing:.5px;padding:4px 11px;border-radius:20px;border:1px solid currentColor;background:rgba(255,255,255,.07);background:color-mix(in srgb,currentColor 15%,transparent)}
-@keyframes dog-hop{0%,100%{transform:translateY(0) rotate(-7deg)}50%{transform:translateY(-9px) rotate(7deg)}}
+@keyframes dog-hop{0%,100%{transform:translateY(0) scale(1,1) rotate(-4deg)}30%{transform:translateY(-4px) scale(.95,1.08) rotate(3deg)}55%{transform:translateY(-13px) scale(1,1) rotate(-2deg)}80%{transform:translateY(-2px) scale(1.06,.92) rotate(2deg)}}
 @keyframes dog-sit{0%,100%{transform:translateY(4px) scale(.95)}50%{transform:translateY(6px) scale(.92)}}
 #priceDogImg{display:inline-block;transition:filter .4s,transform .4s}
-#priceDogImg.up{animation:dog-hop .56s ease-in-out infinite}
+#priceDogImg.up{animation:dog-hop .62s cubic-bezier(.36,.07,.19,.97) infinite;filter:drop-shadow(0 7px 6px rgba(0,0,0,.45))}
 #priceDogImg.down{animation:dog-sit 2.4s ease-in-out infinite;filter:grayscale(.65);transform:translateY(3px) scale(.94)}
 .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
