@@ -930,7 +930,7 @@ function loadTV(){
   if(typeof TradingView==='undefined'){setTimeout(loadTV,600);return;}
   el.innerHTML='';
   new TradingView.widget({container_id:'tv_chart',symbol:'BINANCE:'+sym,
-    interval:TF_TV[tf]||'60',theme:'dark',style:'1',locale:'en',
+    interval:'W',theme:'dark',style:'1',locale:'en',
     toolbar_bg:'#0b0e11',enable_publishing:false,hide_side_toolbar:true,
     allow_symbol_change:true,withdateranges:true,hideideas:true,
     studies:['MASimple@tv-basicstudies','VWAP@tv-basicstudies'],
