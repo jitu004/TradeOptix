@@ -16,6 +16,15 @@ const TOP_N = 40;
 const QUOTA_PER_DAY = 10;
 const RSI_BUY = 70, RSI_SELL = 30, SL_ATR = 2.0, RR = 3.0;
 
+// Correlation groups — same-group coins move together; only ONE active trade per group (portfolio risk control)
+const CORR_GROUPS: Record<string, string> = {
+  BTCUSDT: "G1", ETHUSDT: "G1", BNBUSDT: "G1",
+  SOLUSDT: "G2", AVAXUSDT: "G2", DOTUSDT: "G2", MATICUSDT: "G2", NEARUSDT: "G2", ATOMUSDT: "G2", ADAUSDT: "G2", LINKUSDT: "G2", TRXUSDT: "G2", SUIUSDT: "G2", APTUSDT: "G2",
+  DOGEUSDT: "G3", SHIBUSDT: "G3", PEPEUSDT: "G3", BONKUSDT: "G3", WIFUSDT: "G3", FLOKIUSDT: "G3",
+  XRPUSDT: "G4", LTCUSDT: "G4", BCHUSDT: "G4", XLMUSDT: "G4",
+};
+const corrGroup = (sym: string): string => CORR_GROUPS[sym] ?? sym; // unknown coins = own group
+
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";
 const KEY = Deno.env.get("INSFORGE_SERVICE_KEY") ?? "";
 
@@ -78,11 +87,14 @@ let lastLearnDay = "";
 async function getWeights(): Promise<Weights> {
   const def: Weights = { tierW: { "1": 1, "2": 1, "3": 1, "4": 1 }, patW: 1, dirW: { "1": 1, "-1": 1 } };
   const calc = async (days: number): Promise<Weights | null> => {
-    const rows = await runSql(`SELECT tier, direction, pattern, result, count(*)::int AS c FROM signals WHERE status='RESOLVED' AND signal_time >= now() - interval '${days} days' GROUP BY 1,2,3,4`);
+    const rows = await runSql(`SELECT tier, direction, pattern, result, tp_hit, count(*)::int AS c FROM signals WHERE status='RESOLVED' AND signal_time >= now() - interval '${days} days' GROUP BY 1,2,3,4,5`);
     if (!rows.length) return null;
+    // LADDER CREDIT: TP3 final=1.0, expired-win=0.7, hit TP2 then SL=0.6, hit TP1 then SL=0.35, straight SL=0
+    const creditOf = (r: any): number => r.result === true ? (r.tp_hit >= 3 ? 1.0 : 0.7) : r.tp_hit >= 2 ? 0.6 : r.tp_hit >= 1 ? 0.35 : 0;
     const acc = (o: Record<string, { t: number; f: number }>, k: string, r: any) => {
       o[k] = o[k] || { t: 0, f: 0 };
-      if (r.result === true) o[k].t += +r.c; else o[k].f += +r.c;
+      o[k].t += creditOf(r) * +r.c;   // t = total credit score
+      o[k].f += +r.c;                 // f = count
     };
     const tier: Record<string, { t: number; f: number }> = {};
     const dir: Record<string, { t: number; f: number }> = {};
@@ -97,10 +109,10 @@ async function getWeights(): Promise<Weights> {
     if (!anyTier) return null;
     const w = (bb: { t: number; f: number } | undefined): number => {
       if (!bb) return 1;
-      const tot = bb.t + bb.f;
-      if (tot < 3) return 1;
-      const tp = bb.t / tot;
-      return Math.max(0.6, Math.min(1.4, 0.55 + tp));
+      const cnt = bb.f;
+      if (cnt < 3) return 1;
+      const q = bb.t / cnt;   // avg ladder credit 0..1
+      return Math.max(0.6, Math.min(1.4, 0.6 + q * 0.8));   // q=0 -> 0.6, q=0.5 -> 1.0, q=1 -> 1.4
     };
     const out: Weights = { tierW: {}, patW: 1, dirW: {} };
     for (const k of Object.keys(tier)) out.tierW[k] = w(tier[k]);
@@ -359,19 +371,26 @@ export default async function handler(_req: Request, _ctx: unknown): Promise<Res
   }
 
   async function insert(sym: string, tf: string, sig: any, tier: number, sentAligned: boolean): Promise<void> {
-    // EK COIN = EK ACTIVE SIGNAL — BEST wala jeete: significantly better signal aaye toh REPLACE
+    // ONE COIN = ONE ACTIVE SIGNAL — best wins; CORRELATION FILTER — one risk per group
     try {
-      const act = await runSql(`SELECT id,tier,pattern FROM signals WHERE symbol='${esc(sym)}' AND status='ACTIVE' LIMIT 1`);
-      if (act.length) {
-        const cur = act[0];
-        const newQ = (5 - tier) + (sig.pat ? 0.5 : 0);          // LOW tier = HIGH quality (T1 best)
-        const curQ = (5 - (+cur.tier)) + (cur.pattern ? 0.5 : 0);
-        if (newQ > curQ) {   // strictly behtar ho toh replace (Q bounded — infinite flip nahi)
-          await runSql(`UPDATE signals SET status='CANCELLED', resolved_at=now() WHERE id='${cur.id}'`);
-          await log("INFO", `${sym}: ⬆️ SIGNAL UPGRADE — purana T${cur.tier} CANCELLED, naya T${tier}${sig.pat ? ' (pattern)' : ''} ACTIVE`);
+      const act = await runSql(`SELECT id,symbol,tier,pattern FROM signals WHERE status='ACTIVE'`);
+      const symRow = act.find((x: any) => x.symbol === sym);
+      if (symRow) {
+        const newQ = (5 - tier) + (sig.pat ? 0.5 : 0);            // LOW tier = HIGH quality (T1 best)
+        const curQ = (5 - (+symRow.tier)) + (symRow.pattern ? 0.5 : 0);
+        if (newQ > curQ) {                                         // strictly better -> replace (Q bounded — no infinite flip)
+          await runSql(`UPDATE signals SET status='CANCELLED', resolved_at=now() WHERE id='${symRow.id}'`);
+          await log("INFO", `${sym}: SIGNAL UPGRADE — old T${symRow.tier} CANCELLED, new T${tier}${sig.pat ? " (pattern)" : ""} ACTIVE`);
         } else {
-          logs.push(`-- ${sym}: already ACTIVE (T${cur.tier}) — naya T${tier} skip`);
-          await log("INFO", `${sym}: naya signal skip — ACTIVE T${cur.tier} behtar/barabar hai`);
+          logs.push(`-- ${sym}: already ACTIVE (T${symRow.tier}) — new T${tier} skipped`);
+          return;
+        }
+      } else if (act.length) {
+        const myGroup = corrGroup(sym);
+        const clash = act.find((x: any) => corrGroup(x.symbol) === myGroup);
+        if (clash) {
+          logs.push(`-- ${sym}: correlation filter — ${clash.symbol} already ACTIVE (group ${myGroup})`);
+          await log("INFO", `${sym}: skipped — correlated with ACTIVE ${clash.symbol} (group ${myGroup})`);
           return;
         }
       }

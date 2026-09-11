@@ -1,8 +1,10 @@
-// TradeOptix — Signal Resolver v4 — InsForge Edge Function (Deno/TS)
-// Har 5 minute chalao (cron "*/5 * * * *")
-// ACTIVE signals check karta hai: TP hit → TRUE ✅, SL hit → FALSE ❌
-// Result signals table me save hota hai + engine_logs me likha jata hai.
-
+// TradeOptix — Signal Resolver v5 — InsForge Edge Function (Deno/TS)
+// Runs every 5 min — ACTIVE signals checked with TP LADDER tracking:
+//   TP1 hit -> 🎯 milestone email (profit% + period) — trade STILL active
+//   TP2 hit -> 🎯 milestone email
+//   TP3 hit -> ✅ FINAL TRUE (trade closed)
+//   SL hit  -> ❌ FINAL FALSE (trade closed)
+//   7 days  -> ⌛ expiry (result by PnL)
 const BINANCE = "https://data-api.binance.vision/api/v3";
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";
 const KEY = Deno.env.get("INSFORGE_SERVICE_KEY") ?? "";
@@ -24,13 +26,32 @@ async function log(level: string, message: string): Promise<void> {
   try { await runSql(`INSERT INTO engine_logs (level,message) VALUES ('${esc(level)}','${esc(message)}')`); } catch { /* noop */ }
 }
 
-export default async function handler(_req: Request, _ctx: unknown): Promise<Response> {
+async function sendEmail(subject: string, text: string): Promise<boolean> {
+  const BREVO = Deno.env.get("BREVO_KEY") ?? "";
+  const ADMIN = (Deno.env.get("ADMIN_EMAILS") ?? "").split(",")[0]?.trim();
+  if (!BREVO || !ADMIN) return false;
+  try {
+    const r = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "api-key": BREVO, "Content-Type": "application/json" },
+      body: JSON.stringify({ sender: { name: "TradeOptix Signals", email: "noreply@tradeoptix.app" }, to: [{ email: ADMIN }], subject, textContent: text }),
+    });
+    return r.ok;
+  } catch { return false; }
+}
+
+function fmtDur(ms: number): string {
+  const m = Math.floor(ms / 60000);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  return `${h} hr ${m % 60} min`;
+}
+
+export default async function handler(_req: Request): Promise<Response> {
   const rows = await runSql(
-    `SELECT id,symbol,direction,entry_price,stop_loss,take_profit,signal_time FROM signals WHERE status='ACTIVE'`
+    `SELECT id,symbol,direction,entry_price,stop_loss,take_profit,signal_time,tp_hit,sl_current FROM signals WHERE status='ACTIVE'`
   );
-  if (!rows.length) {
-    return new Response(JSON.stringify({ checked: 0, at: new Date().toISOString() }), { headers: { "Content-Type": "application/json" } });
-  }
+  if (!rows.length) return new Response(JSON.stringify({ checked: 0, at: new Date().toISOString() }), { headers: { "Content-Type": "application/json" } });
 
   const syms = [...new Set(rows.map((r: any) => r.symbol))];
   const tr = await fetch(`${BINANCE}/ticker/price`);
@@ -42,62 +63,64 @@ export default async function handler(_req: Request, _ctx: unknown): Promise<Res
   for (const s of rows) {
     const p = price[s.symbol];
     if (!p) { results.push(`-- ${s.symbol}: no price`); continue; }
+    const dir = s.direction === 1 ? 1 : -1;
+    const entry = +s.entry_price, sl = +s.stop_loss;
+    const slC = s.sl_current != null ? +s.sl_current : sl;   // breakeven-aware SL
+    const risk = Math.abs(entry - sl) || 1e-9;
+    const tp1 = entry + dir * risk, tp2 = entry + dir * 2 * risk, tp3 = +s.take_profit;
+    const ageMs = Date.now() - new Date(s.signal_time).getTime();
+    const period = fmtDur(ageMs);
+    const pct = (target: number) => (((target - entry) / entry) * 100 * dir).toFixed(2);
 
-    let status: string | null = null, exitP = 0, result = false, why = "";
-    if (s.direction === 1) {
-      if (p >= s.take_profit) { status = "TP_HIT"; exitP = s.take_profit; result = true; why = "TP"; }
-      else if (p <= s.stop_loss) { status = "SL_HIT"; exitP = s.stop_loss; result = false; why = "SL"; }
+    // ---- ENTRY CONFIRMED (first resolver touch — VIP style "entries achieved") ----
+    if ((s.tp_hit || 0) === 0) {
+      await runSql(`UPDATE signals SET tp_hit=-1 WHERE id='${s.id}'`);
+      await sendEmail(`✅ ENTRY CONFIRMED: ${s.symbol} ${dir === 1 ? "LONG" : "SHORT"}`,
+        `✅ ${s.symbol} ${dir === 1 ? "LONG" : "SHORT"}\nEntry achieved @ ${entry}\nSL: ${sl} | TP1: ${tp1.toFixed(6)} | TP2: ${tp2.toFixed(6)} | TP3: ${tp3}\nTrade is now ACTIVE\nSignal time: ${new Date(s.signal_time).toLocaleString("en-GB")}`);
+      await log("INFO", `${s.symbol} ✅ ENTRY CONFIRMED @ ${entry}`);
+      results.push(`ENTRY ${s.symbol}`);
+    }
+
+    // ---- SL first (final) ----
+    const slHit = dir === 1 ? p <= slC : p >= slC;
+    if (slHit) {
+      const pnl = (((slC - entry) / entry) * 100 * dir);
+      await runSql(`UPDATE signals SET status='SL_HIT', result=false, exit_price=${slC}, pnl_pct=${pnl.toFixed(3)}, resolved_at=now() WHERE id='${s.id}'`);
+      await sendEmail(`❌ SL HIT: ${s.symbol} ${dir === 1 ? "LONG" : "SHORT"}`, `❌ ${s.symbol} ${dir === 1 ? "LONG" : "SHORT"}\nStop Loss hit\nExit: ${slC}\nPnL: ${pnl.toFixed(2)}%\nPeriod: ${period}`);
+      await log("FALSE", `${s.symbol} ${dir === 1 ? "LONG" : "SHORT"} → FALSE ❌ (SL) | exit ${sl} | PnL ${pnl.toFixed(2)}% | ${period}`);
+      results.push(`FALSE ${s.symbol} SL`);
+      continue;
+    }
+
+    // ---- TP ladder ----
+    let lvl = 0;
+    if (dir === 1) { if (p >= tp1) lvl = 1; if (p >= tp2) lvl = 2; if (p >= tp3) lvl = 3; }
+    else { if (p <= tp1) lvl = 1; if (p <= tp2) lvl = 2; if (p <= tp3) lvl = 3; }
+    const cur = (s.tp_hit || 0) > 0 ? s.tp_hit : 0;
+
+    if (lvl >= 3) {
+      const pnl = ((tp3 - entry) / entry) * 100 * dir;
+      await runSql(`UPDATE signals SET status='TP_HIT', result=true, exit_price=${tp3}, pnl_pct=${pnl.toFixed(3)}, resolved_at=now(), tp_hit=3 WHERE id='${s.id}'`);
+      await sendEmail(`✅ TP3 FINAL: ${s.symbol} ${dir === 1 ? "LONG" : "SHORT"}`, `✅✅✅ ${s.symbol} ${dir === 1 ? "LONG" : "SHORT"}\nTP3 FINAL — trade closed\nExit: ${tp3}\nPnL: ${pnl.toFixed(2)}%\nPeriod: ${period}`);
+      await log("TRUE", `${s.symbol} ${dir === 1 ? "LONG" : "SHORT"} → TRUE ✅ (TP3 FINAL) | exit ${tp3} | PnL ${pnl.toFixed(2)}% | ${period}`);
+      results.push(`TRUE ${s.symbol} TP3`);
+    } else if (lvl > cur) {
+      // TRAILING STOP LADDER: TP1 -> SL=entry (breakeven) | TP2 -> SL=TP1 (profit locked) | TP3 -> final
+      const beUpdate = lvl === 1 ? `, sl_current=${entry}` : lvl === 2 ? `, sl_current=${tp1}` : "";
+      await runSql(`UPDATE signals SET tp_hit=${lvl}${beUpdate} WHERE id='${s.id}'`);
+      const lbl = `TP${lvl}`;
+      const tval = lvl === 1 ? tp1 : tp2;
+      await sendEmail(`🎯 ${lbl} HIT: ${s.symbol} ${dir === 1 ? "LONG" : "SHORT"}`, `🎯 ${s.symbol} ${dir === 1 ? "LONG" : "SHORT"}\n${lbl} achieved!\nProfit: ${pct(tval)}%\nPeriod: ${period}\nTrade still running — next target ${lvl === 1 ? "TP2" : "TP3"}${lvl === 1 ? "\nSL moved to BREAKEVEN @ entry — no loss possible now" : lvl === 2 ? `\nSL moved to TP1 — +${pct(tp1)}% PROFIT LOCKED in` : ""}`);
+      await log("TRUE", `${s.symbol} → 🎯 ${lbl} HIT | profit ${pct(tval)}% | ${period}`);
+      results.push(`MILESTONE ${s.symbol} ${lbl}`);
+    } else if (ageMs > 168 * 3600e3) {
+      const result = dir === 1 ? p > entry : p < entry;
+      await runSql(`UPDATE signals SET status='EXPIRED', result=${result}, exit_price=${p}, pnl_pct=${(((p - entry) / entry) * 100 * dir).toFixed(3)}, resolved_at=now() WHERE id='${s.id}'`);
+      await log("INFO", `${s.symbol} expired → ${result ? "TRUE" : "FALSE"}`);
+      results.push(`EXPIRED ${s.symbol}`);
     } else {
-      if (p <= s.take_profit) { status = "TP_HIT"; exitP = s.take_profit; result = true; why = "TP"; }
-      else if (p >= s.stop_loss) { status = "SL_HIT"; exitP = s.stop_loss; result = false; why = "SL"; }
+      results.push(`.. ${s.symbol} open @${p} (tp${cur})`);
     }
-    // 7 din purana aur abhi bhi active → expiry (current PnL se true/false)
-    const ageH = (Date.now() - new Date(s.signal_time).getTime()) / 3600000;
-    if (!status && ageH > 168) {
-      status = "EXPIRED"; exitP = p;
-      result = s.direction === 1 ? p > s.entry_price : p < s.entry_price;
-      why = "EXPIRY";
-    }
-    if (!status) { results.push(`.. ${s.symbol} open @ ${p}`); continue; }
-
-    const pnl = (((exitP - s.entry_price) / s.entry_price) * 100 * s.direction);
-    await runSql(
-      `UPDATE signals SET status='${status}', result=${result}, exit_price=${exitP}, pnl_pct=${pnl.toFixed(3)}, resolved_at=now() WHERE id='${s.id}'`
-    );
-    results.push(`${result ? "TRUE" : "FALSE"} ${s.symbol} ${why} pnl=${pnl.toFixed(2)}%`);
-    await log(result ? "TRUE" : "FALSE", `${s.symbol} ${s.direction === 1 ? "LONG" : "SHORT"} → ${result ? "TRUE ✅" : "FALSE ❌"} (${why}) | exit ${exitP} | PnL ${pnl.toFixed(2)}%`);
-
-    // result alert: EMAIL (Brevo — reliable) + whatsapp optional
-    const icon = result ? "✅ TRUE" : "❌ FALSE";
-    const rmsg = `${icon} ${s.symbol} ${s.direction === 1 ? "LONG" : "SHORT"} (${why})\nExit: ${exitP}\nPnL: ${pnl.toFixed(2)}%`;
-    try {
-      const BREVO = Deno.env.get("BREVO_KEY") ?? "";
-      const ADMIN = (Deno.env.get("ADMIN_EMAILS") ?? "").split(",")[0]?.trim();
-      if (BREVO && ADMIN) {
-        await fetch("https://api.brevo.com/v3/smtp/email", {
-          method: "POST",
-          headers: { "api-key": BREVO, "Content-Type": "application/json" },
-          body: JSON.stringify({ sender: { name: "TradeOptix Signals", email: "noreply@tradeoptix.app" }, to: [{ email: ADMIN }], subject: `${icon} RESULT: ${s.symbol}`, textContent: rmsg }),
-        });
-      }
-    } catch { /* non-fatal */ }
-    const TO2 = Deno.env.get("WHATSAPP_PHONE");
-    if (TO2) {
-      try {
-        const SID = Deno.env.get("TWILIO_SID"), TOK = Deno.env.get("TWILIO_TOKEN"), FROM = Deno.env.get("TWILIO_FROM");
-        if (SID && TOK && FROM) {
-          await fetch(`https://api.twilio.com/2010-04-01/Accounts/${SID}/Messages.json`, {
-            method: "POST",
-            headers: { Authorization: `Basic ${btoa(`${SID}:${TOK}`)}`, "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({ From: FROM, To: TO2.startsWith("whatsapp:") ? TO2 : `whatsapp:${TO2}`, Body: rmsg }).toString(),
-          });
-        } else {
-          const WA_KEY = Deno.env.get("WHATSAPP_APIKEY");
-          if (WA_KEY) await fetch(`https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(TO2)}&apikey=${WA_KEY}&text=${encodeURIComponent(rmsg)}`);
-        }
-      } catch { /* non-fatal */ }
-    }
-  }  return new Response(JSON.stringify({ checked: rows.length, results, at: new Date().toISOString() }, null, 2), {
-    status: 200, headers: { "Content-Type": "application/json" },
-  });
+  }
+  return new Response(JSON.stringify({ checked: rows.length, results, at: new Date().toISOString() }, null, 1), { status: 200, headers: { "Content-Type": "application/json" } });
 }

@@ -92,10 +92,19 @@ function sigToast(s) {
 let weeklyCache = [];
 let weeklyFilter = 'all';
 
-function renderWeeklyDetail() {
+let livePrices = {};
+async function renderWeeklyDetail() {
   const el = document.getElementById('weeklyDetail');
   if (!el) return;
   let rows = weeklyCache;
+  const actSyms = [...new Set(rows.filter(x => x.status === 'ACTIVE').map(x => x.symbol))];
+  if (actSyms.length) {
+    try {
+      const r = await fetch('https://data-api.binance.vision/api/v3/ticker/price?symbols=' + encodeURIComponent(JSON.stringify(actSyms)));
+      const arr = await r.json();
+      (arr || []).forEach(t => { livePrices[t.symbol] = +t.price; });
+    } catch { /* price fail = fallback line */ }
+  }
   if (weeklyFilter === 'true') rows = rows.filter(x => x.result === true);
   else if (weeklyFilter === 'false') rows = rows.filter(x => x.result === false);
   else if (weeklyFilter === 'active') rows = rows.filter(x => x.status === 'ACTIVE');
@@ -138,12 +147,23 @@ function renderWeeklyDetail() {
       const risk2 = Math.abs((+x.entry_price) - (+x.stop_loss)) || 1e-9;
       const sgn2 = x.direction === 1 ? 1 : -1;
       const pct = (v) => (((v - +x.entry_price) / +x.entry_price) * 100).toFixed(1);
-      ach = `<div style="margin-top:4px;font-size:10px;color:var(--muted)">\u23F3 Waiting \u00B7 TP1 ${fmt2(+x.entry_price + sgn2 * risk2)} (${pct(+x.entry_price + sgn2 * risk2)}%) \u00B7 TP2 ${fmt2(+x.entry_price + sgn2 * 2 * risk2)} (${pct(+x.entry_price + sgn2 * 2 * risk2)}%)</div>`;
+      const cur = livePrices[x.symbol];
+      if (cur) {
+        const pnlNow = ((cur - +x.entry_price) / +x.entry_price) * 100 * x.direction;
+        const tp1v = +x.entry_price + sgn2 * risk2;
+        const slv = +x.stop_loss;
+        const away = (t) => Math.abs(((t - cur) / cur) * 100).toFixed(1);
+        const prog = Math.max(2, Math.min(98, ((cur - slv) / (tp1v - slv)) * 100));
+        ach = `<div style="margin-top:4px;font-size:11px;color:${pnlNow >= 0 ? 'var(--green)' : 'var(--red)'}">Live <b>${fmt2(cur)}</b> (${pnlNow > 0 ? '+' : ''}${pnlNow.toFixed(2)}%) \u00B7 TP1 ${away(tp1v)}% away \u00B7 SL ${away(slv)}% away</div>
+        <div style="height:6px;background:#3d1d1d;border-radius:3px;margin-top:4px;position:relative"><div style="position:absolute;left:50%;top:-1px;width:1px;height:8px;background:#666"></div><div style="height:100%;width:${prog}%;background:${pnlNow >= 0 ? '#3fb950' : '#f85149'};border-radius:3px"></div></div>`;
+      } else {
+        ach = `<div style="margin-top:4px;font-size:10px;color:var(--muted)">\u23F3 Waiting \u00B7 TP1 ${fmt2(+x.entry_price + sgn2 * risk2)} (${pct(+x.entry_price + sgn2 * risk2)}%) \u00B7 TP2 ${fmt2(+x.entry_price + sgn2 * 2 * risk2)} (${pct(+x.entry_price + sgn2 * 2 * risk2)}%)</div>`;
+      }
     }
 return `<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:6px">
         <b style="color:${x.direction === 1 ? 'var(--green)' : 'var(--red)'}">${x.direction === 1 ? 'LONG' : 'SHORT'} ${String(x.symbol).replace('USDT', '')}</b>
-        <span style="color:var(--muted);font-size:10px">${(x.timeframe || '').toUpperCase()}${x.tier > 1 ? ' T' + x.tier : ''}${x.pattern ? ' \u{1F56F}' + x.pattern : ''}</span>${st}
+        <span style="color:var(--muted);font-size:10px">${(x.timeframe || '').toUpperCase()}${x.tier > 1 ? ' T' + x.tier : ''}${x.tp_hit >= 2 ? ' \u{1F3AF}TP1+TP2' : x.tp_hit >= 1 ? ' \u{1F3AF}TP1' : ''}${x.pattern ? ' \u{1F56F}' + x.pattern : ''}</span>${st}
       </div>
       <div style="font-family:var(--mono);color:var(--muted)">Entry <b style="color:var(--yellow)">${fmt(x.entry_price)}</b> \u00B7 SL <b style="color:var(--red)">${fmt(x.stop_loss)}</b> \u00B7 TP <b style="color:var(--green)">${fmt(x.take_profit)}</b>${x.pnl_pct != null ? ` \u00B7 PnL <b style="color:${x.pnl_pct > 0 ? 'var(--green)' : 'var(--red)'}">${x.pnl_pct}%</b>` : ''}</div>
       ${ach}

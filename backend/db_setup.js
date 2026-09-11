@@ -37,6 +37,8 @@ const STATEMENTS: string[] = [
   `ALTER TABLE signals ADD COLUMN IF NOT EXISTS tier SMALLINT DEFAULT 1`,
 
   `ALTER TABLE signals ADD COLUMN IF NOT EXISTS pattern TEXT`,
+  `ALTER TABLE signals ADD COLUMN IF NOT EXISTS tp_hit SMALLINT DEFAULT 0`,
+  `ALTER TABLE signals ADD COLUMN IF NOT EXISTS sl_current DOUBLE PRECISION`,
 
   // realtime log capture
   `CREATE TABLE IF NOT EXISTS engine_logs (

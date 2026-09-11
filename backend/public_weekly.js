@@ -24,7 +24,7 @@ export default async function handler(_req: Request): Promise<Response> {
   };
   try {
     const rows = await runSql(
-      `SELECT id,symbol,timeframe,direction,entry_price,stop_loss,take_profit,status,result,pnl_pct,signal_time,resolved_at,tier
+      `SELECT id,symbol,timeframe,direction,entry_price,stop_loss,take_profit,status,result,pnl_pct,signal_time,resolved_at,tier,tp_hit,pattern
        FROM signals WHERE signal_time >= now() - interval '7 days' ORDER BY signal_time DESC LIMIT 200`
     );
     const resolved = rows.filter((r: any) => r.status !== "ACTIVE");
