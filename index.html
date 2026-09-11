@@ -108,10 +108,12 @@ select:focus,input:focus{border-color:var(--yellow)}
   <!-- LEFT: SIGNAL PANEL -->
   <div>
   <!-- ⚡ LIVE SIGNAL -->
-      <h3>⚡ Live Signal <span id="liveSigSym" style="color:var(--yellow)"></span></h3>
-      <div id="liveSigBox" style="font-family:var(--mono);font-size:13px;line-height:2;color:var(--text)">
+    <div class="panel" style="border:1px solid #f0b90b55;box-shadow:0 0 24px rgba(240,185,11,.08), inset 0 0 40px rgba(240,185,11,.03)">
+      <h3 style="font-size:16px;letter-spacing:.5px">⚡ Live Signal <span id="liveSigSym" style="color:var(--yellow);font-size:13px"></span></h3>
+      <div id="liveSigBox" style="font-family:var(--mono);font-size:14px;line-height:2.1;color:var(--text);padding:6px 4px">
         <div style="color:var(--muted);text-align:center;padding:18px 0">No active signal — waiting for setup…</div>
       </div>
+    </div>
 
     <div class="panel" style="display:none">
       <h3>Live Signal <span id="edgeBadge" class="badge badge-mid">—</span></h3>
@@ -168,16 +170,16 @@ select:focus,input:focus{border-color:var(--yellow)}
       <h3>💱 Currency Converter</h3>
       <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px">
         <div style="flex:1">
-          <input type="number" id="convAmtFrom" value="1" min="0" style="width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:8px;font-family:var(--mono);font-size:16px;font-weight:700;margin-bottom:8px">
-          <select id="convFrom" style="width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:9px;border-radius:8px"></select>
+          <input type="number" id="convAmtFrom" value="1" min="0" style="width:100%;box-sizing:border-box;background:linear-gradient(135deg,#1b2334,#151b29);border:1px solid #3b82f6;color:#7dd3fc;padding:10px;border-radius:10px;font-family:var(--mono);font-size:16px;font-weight:700;margin-bottom:8px;outline:none">
+          <select id="convFrom" style="width:100%;box-sizing:border-box;background:linear-gradient(135deg,#1b2334,#151b29);border:1px solid #33415e;color:#93c5fd;padding:9px;border-radius:10px;font-weight:600"></select>
         </div>
-        <button id="convSwap" title="Swap currencies" style="margin-top:8px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:50%;width:36px;height:36px;cursor:pointer;font-size:16px;flex-shrink:0">⇄</button>
+        <button id="convSwap" title="Swap currencies" style="margin-top:8px;background:linear-gradient(135deg,#f0b90b,#f97316);border:none;color:#000;border-radius:50%;width:38px;height:38px;cursor:pointer;font-size:17px;flex-shrink:0;box-shadow:0 3px 10px rgba(240,185,11,.35)">⇄</button>
         <div style="flex:1">
-          <input type="number" id="convAmtTo" value="0" min="0" style="width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--yellow);color:var(--yellow);padding:10px;border-radius:8px;font-family:var(--mono);font-size:16px;font-weight:700;margin-bottom:8px">
-          <select id="convTo" style="width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:9px;border-radius:8px"></select>
+          <input type="number" id="convAmtTo" value="0" min="0" style="width:100%;box-sizing:border-box;background:linear-gradient(135deg,#2a2110,#1d1810);border:1px solid #f0b90b;color:#fde047;padding:10px;border-radius:10px;font-family:var(--mono);font-size:16px;font-weight:700;margin-bottom:8px;outline:none">
+          <select id="convTo" style="width:100%;box-sizing:border-box;background:linear-gradient(135deg,#1b2334,#151b29);border:1px solid #33415e;color:#93c5fd;padding:9px;border-radius:10px;font-weight:600"></select>
         </div>
       </div>
-      <div id="convRate" class="note" style="font-size:11px;text-align:center"></div>
+      <div id="convRate" class="note" style="font-size:11px;text-align:center;color:#c084fc;font-weight:600"></div>
     </div>
     <div class="panel" style="margin-top:14px"><h3>🌡️ Market Sentiment</h3><div id="sentPanel">Loading…</div></div>
   </div>
@@ -919,7 +921,7 @@ const TF_TV={'1m':'1','15m':'15','30m':'30','1h':'60','2h':'120','4h':'240','6h'
 function loadTV(){
   const el=document.getElementById('tv_chart');
   if(!el)return;
-  const ch=Math.max(430,Math.round(window.innerHeight-440));
+  const ch=Math.max(430,Math.round(window.innerHeight-510));
   el.style.height=ch+'px';
   if(!document.getElementById('tv_chart'))return;
   if(typeof TradingView==='undefined'){setTimeout(loadTV,600);return;}

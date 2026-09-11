@@ -412,17 +412,17 @@ async function loadLiveSignal() {
     if (symEl) symEl.textContent = (s.symbol || '').replace('USDT', '') + '/' + (s.timeframe || '').toUpperCase() + (s.tier > 1 ? ' T' + s.tier : '');
     const st = s.status === 'ACTIVE' ? '<span class="badge badge-strong">ACTIVE</span>' : (s.result === true ? '<span class="badge" style="background:#12361f;color:#3fb950">TRUE ✅</span>' : '<span class="badge" style="background:#3d1d1d;color:#f85149">FALSE ❌</span>');
     box.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center"><span>Signal Type: <b style="color:${c};font-size:15px">${dir}</b></span>${st}</div>
-      <div>Leverage: <b>Cross (10X)</b></div>
-      <div style="margin-top:10px;color:var(--muted);font-size:11px;letter-spacing:1px">ENTRY TARGETS</div>
-      <div>1) <b style="color:var(--yellow)">${fmt(e)}</b></div>
-      <div style="margin-top:10px;color:var(--muted);font-size:11px;letter-spacing:1px">TAKE-PROFIT TARGETS</div>
-      <div>1) <b style="color:var(--green)">${fmt(tp1)}</b></div>
-      <div>2) <b style="color:var(--green)">${fmt(tp2)}</b></div>
-      <div>3) <b style="color:var(--green)">${fmt(tp3)}</b></div>
-      <div style="margin-top:10px;color:var(--muted);font-size:11px;letter-spacing:1px">STOP TARGETS</div>
-      <div>1) <b style="color:var(--red)">${fmt(sl)}</b></div>
-      <div style="margin-top:10px;font-size:11px;color:var(--muted)">${new Date(s.signal_time).toLocaleString('en-GB')}</div>`;
+      <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:15px">Signal Type: <b style="color:${c};font-size:19px;text-shadow:0 0 14px ${c}">${dir}</b></span>${st}</div>
+      <div style="color:#8b949e;font-size:13px">Leverage: <b style="color:var(--text)">Cross (10X)</b></div>
+      <div style="margin-top:12px;color:#f0b90b;font-size:11px;letter-spacing:2px;font-weight:800;border-bottom:1px solid #f0b90b33;padding-bottom:3px">ENTRY TARGET</div>
+      <div style="font-size:16px">1) <b style="color:#fde047">${fmt(e)}</b></div>
+      <div style="margin-top:12px;color:#3fb950;font-size:11px;letter-spacing:2px;font-weight:800;border-bottom:1px solid #3fb95033;padding-bottom:3px">TAKE-PROFIT TARGETS</div>
+      <div style="font-size:15px">1) <b style="color:#4ade80">${fmt(tp1)}</b></div>
+      <div style="font-size:15px">2) <b style="color:#4ade80">${fmt(tp2)}</b></div>
+      <div style="font-size:15px">3) <b style="color:#4ade80">${fmt(tp3)}</b></div>
+      <div style="margin-top:12px;color:#f85149;font-size:11px;letter-spacing:2px;font-weight:800;border-bottom:1px solid #f8514933;padding-bottom:3px">STOP TARGET</div>
+      <div style="font-size:16px">1) <b style="color:#f87171">${fmt(sl)}</b></div>
+      <div style="margin-top:12px;font-size:11px;color:var(--muted)">🕐 ${new Date(s.signal_time).toLocaleString('en-GB')}</div>`;
   } catch (e2) { box.innerHTML = '<div style="color:var(--muted);text-align:center;padding:18px 0">Signal feed unreachable…</div>'; }
 }
 
