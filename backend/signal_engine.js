@@ -1,15 +1,15 @@
 // TradeOptix — Signal Engine v4.1 (sentiment-gated, multi-timeframe, quota: ~10/day)
 // InsForge Edge Function (Deno/TS) — Attach schedule: every 30 min (cron "*/30 * * * *")
 //
-// REAL-TIME CHART READING (MTF): signal tabhi milta hai jab chart ke multiple timeframes align hon —
-//   1D trend (EMA stack) → 4H setup (confluence detect) → dono same direction me hon
-// MARKET SENTIMENT GATE: `sentiment` table ka latest score quality decide karta hai —
-//   score >= 55 (Greed)  → LONG allowed, SHORT blocked (extreme greed >= 75 pe SHORT allowed — fade)
-//   score <= 45 (Fear)   → SHORT allowed, LONG blocked (extreme fear <= 25 pe LONG allowed — dip buy)
-//   45-55 neutral        → dono allowed, quality tier se decide
-//   Sentiment-aligned signal ko +15% score boost milta hai
-// QUOTA: 10/day — pehle 1D full confluence (T1), phir 4H tiered-relax (T2→T4) se fill.
-// Har action engine_logs me likha jata hai (frontend Live Logs panel).
+// REAL-TIME CHART READING (MTF): a signal only fires when multiple chart timeframes align —
+//   1D trend (EMA stack) -> 4H setup (confluence detect) -> both must point the same direction
+// MARKET SENTIMENT GATE: the latest score in the `sentiment` table decides quality —
+//   score >= 55 (Greed)  -> LONG allowed, SHORT blocked (extreme greed >= 75: SHORT allowed — fade)
+//   score <= 45 (Fear)   -> SHORT allowed, LONG blocked (extreme fear <= 25: LONG allowed — dip buy)
+//   45-55 neutral        -> both allowed, decided by quality tier
+//   Sentiment-aligned signals get a +15% score boost
+// QUOTA: 10/day — first 1D full confluence (T1), then 4H tiered-relax (T2->T4) fill.
+// Every action is written to engine_logs (frontend Live Logs panel).
 
 const BINANCE = "https://data-api.binance.vision/api/v3";
 const TOP_N = 40;
@@ -249,7 +249,7 @@ function patterns(kl: any[]) {
 
 // ---------- tiered detection ----------
 // Tier 1-3: RSI CROSS based (quality events, strict)
-// Tier 4:   RSI ZONE based (state-based — quota fill ke liye, zyada frequent)
+// Tier 4:   RSI ZONE based (state-based — for quota fill, more frequent)
 function detect(kl: any[], tier: number, p: any) {
   const closes = kl.map((x) => x.c);
   if (closes.length < 210) return null;
@@ -316,7 +316,7 @@ async function getStrategy(): Promise<any> {
   return def;
 }
 
-// Parallel scan: 8 coins at a time (gateway-timeout se bachne ke liye)
+// Parallel scan: 8 coins at a time (to avoid gateway timeout)
 async function scanBatch<T>(items: string[], fn: (sym: string) => Promise<T | null>): Promise<T[]> {
   const out: T[] = [];
   for (let i = 0; i < items.length; i += 8) {
@@ -418,7 +418,7 @@ export default async function handler(_req: Request, _ctx: unknown): Promise<Res
       const r = await fetch("https://api.brevo.com/v3/smtp/email", {
         method: "POST",
         headers: { "api-key": BREVO, "Content-Type": "application/json" },
-        body: JSON.stringify({ sender: { name: "TradeOptix Signals", email: "noreply@tradeoptix.app" }, to: [{ email: ADMIN }], subject, textContent: text }),
+        body: JSON.stringify({ sender: { name: "TradeOptix Signals", email: Deno.env.get("ALERT_SENDER") || "noreply@tradeoptix.app" }, to: [{ email: ADMIN }], subject, textContent: text }),
       });
       return r.ok;
     } catch { return false; }

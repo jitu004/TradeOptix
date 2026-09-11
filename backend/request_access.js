@@ -1,6 +1,6 @@
 // TradeOptix — Access Request (signup -> pending approval) — InsForge Edge Function (Deno/TS)
-// User signup ke baad ye call hota hai. Request 'pending' me record hoti hai.
-// Admin ko Brevo email jata hai jisme 1-CLICK APPROVAL LINK hota hai — login ki zaroorat nahi.
+// Called after user signup. Request is recorded as 'pending'.
+// Admin receives a Brevo email with a 1-CLICK APPROVAL LINK — no login needed.
 
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";
 const KEY = Deno.env.get("INSFORGE_SERVICE_KEY") ?? "";

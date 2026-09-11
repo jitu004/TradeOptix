@@ -1,5 +1,5 @@
 // TradeOptix — Live Engine Logs API — InsForge Edge Function (Deno/TS)
-// Frontend ka "Engine Logs" panel har 3 sec me ye poll karta hai.
+// The frontend "Engine Logs" panel polls this every 3 seconds.
 // App fetches: https://r3pjdfkc.function2.insforge.app/public_logs
 
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";

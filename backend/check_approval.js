@@ -1,6 +1,6 @@
 // TradeOptix — Approval Check — InsForge Edge Function (Deno/TS)
-// Login ke baad frontend ye check karta hai: kya ye user admin-approved hai?
-// approved -> access milta hai | pending -> "waiting for approval" screen
+// After login the frontend checks: is this user admin-approved?
+// approved -> access granted | pending -> "waiting for approval" screen
 
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";
 const KEY = Deno.env.get("INSFORGE_SERVICE_KEY") ?? "";

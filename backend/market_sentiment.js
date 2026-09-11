@@ -1,12 +1,12 @@
 // TradeOptix — Market Sentiment Engine v4.1 — InsForge Edge Function (Deno/TS)
-// Har 15 min chalao (cron "*/15 * * * *") — public bhi rakh sakte ho (frontend panel ke liye)
+// Run every 15 min (cron "*/15 * * * *") — can also be public (for the frontend panel)
 // 5 components se composite 0-100 score (sab Binance public data, no API key):
 //   1. BTC momentum      — 24h change mapped
 //   2. BTC trend          — price vs EMA50 (4h)
 //   3. Market breadth     — top-50 USDT pairs me % jo EMA20 (4h) ke upar hain
 //   4. Funding sentiment  — BTC+ETH perp funding rate (greed = positive, fear = negative)
 //   5. Volatility regime  — ATR% calm → confidence, panic → fear
-// Result `sentiment` table me save hota hai — signal_engine isi ko quality gate ke liye padhta hai.
+// Result is saved in the `sentiment` table — signal_engine reads it as its quality gate.
 
 const BINANCE = "https://data-api.binance.vision/api/v3";
 const FAPI = "https://fapi.binance.com/fapi/v1";
@@ -72,7 +72,7 @@ export default async function handler(_req: Request): Promise<Response> {
     }
     const breadth = checked ? (above / checked) * 100 : 50;
 
-    // 4) Funding sentiment (BTC + ETH perp) — fail ho toh neutral
+    // 4) Funding sentiment (BTC + ETH perp) — falls back to neutral on error
     let funding = 50;
     try {
       const fr = await (await fetch(`${FAPI}/premiumIndex?symbols=["BTCUSDT","ETHUSDT"]`)).json();

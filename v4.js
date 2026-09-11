@@ -232,9 +232,9 @@ async function loadSentimentGauge() {
    Signup:   POST /api/auth/users           {email,password} -> user (approval ke liye request)
    Verify:   GET  /api/auth/sessions/current (Bearer) -> user   [backend functions]
    ANON_KEY: Dashboard -> Secrets -> INSFORGE_ANON_KEY / ANON_KEY value. */
-const ANON_KEY = 'anon_d4e349cf0f19d19a9a53315e4b667de23297b526c873fe3c4702b22792724c8c';
+const ANON_KEY = 'PASTE_INSFORGE_ANON_KEY_HERE';
 const IF_BASE = 'https://r3pjdfkc.eu-central.insforge.app';
-const ADMIN_EMAIL = 'j.nagarkoti@outlook.com';
+const ADMIN_EMAIL = 'PASTE_YOUR_ADMIN_EMAIL_HERE';
 let authToken = null;
 let currentUser = null;
 

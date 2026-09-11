@@ -1,7 +1,7 @@
 // TradeOptix — Server Backtest v4 — InsForge Edge Function (Deno/TS)
-// BACKEND-ONLY: ye poora backtest InsForge par compute hota hai — browser sirf result dikhata hai.
+// BACKEND-ONLY: the whole backtest is computed on InsForge — the browser only shows the result.
 // Same strategy as signal_engine (EMA20/50/200 + Supertrend + VWAP + RSI cross + volume), fees 0.1%/side.
-// Result backtest_runs table me bhi save hota hai.
+// Result is also saved in the backtest_runs table.
 // App fetches: https://r3pjdfkc.function2.insforge.app/server_backtest?symbol=BTCUSDT
 
 const BINANCE = "https://data-api.binance.vision/api/v3";
@@ -93,7 +93,7 @@ async function fetchAllKlines(sym: string, tf: string): Promise<any[]> {
   return all;
 }
 
-// ---- backtest: engine jaisi entry, TP ladder me TP1 pe 1/3, TP2 pe 1/3, TP3 pe 1/3 ----
+// ---- backtest: same entry as engine, TP ladder exits 1/3 at TP1, 1/3 at TP2, 1/3 at TP3 ----
 function runBacktest(kl: any[]) {
   const closes = kl.map((x) => x.c);
   const eF = ema(closes, 20), eS = ema(closes, 50), eL = ema(closes, 200);

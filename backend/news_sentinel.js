@@ -1,6 +1,6 @@
 // TradeOptix — News Sentinel — InsForge Edge Function (Deno/TS)
-// Har ghante chalao (cron "0 * * * *") — free RSS se crypto headlines scan karta hai.
-// FUD/FOMO keywords -> event-risk score (-5..+5). Engine major events pe quality-only mode karta hai.
+// Run hourly (cron "0 * * * *") — scans free RSS feeds for crypto headlines.
+// FUD/FOMO keywords -> event-risk score (-5..+5). Engine switches to quality-only mode on major events.
 
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";
 const KEY = Deno.env.get("INSFORGE_SERVICE_KEY") ?? "";

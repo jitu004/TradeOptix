@@ -1,6 +1,6 @@
 // TradeOptix — Login Logger — InsForge Edge Function (Deno/TS)
-// Frontend login hone pe ye call karta hai — har login DB me record hota hai.
-// Public: koi bhi logged-in user apna login record kar sakta hai (sirf email + time).
+// Frontend calls this after login — every login is recorded in the DB.
+// Public: any logged-in user can record their own login (email + time only).
 
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";
 const KEY = Deno.env.get("INSFORGE_SERVICE_KEY") ?? "";

@@ -1,9 +1,9 @@
 // TradeOptix — DB Setup (one-time) — InsForge Edge Function (Deno/TS)
-// SQL Editor DDL scripts reject karta hai, isliye ye function service key se
-// saari tables/columns khud bana deta hai.
-// USE: is function ko deploy karo (env vars ke saath), phir browser me kholo:
+// The SQL Editor rejects DDL scripts, so this function uses the service key to
+// create all tables/columns itself.
+// USE: deploy this function (with env vars), then open in browser:
 //   https://r3pjdfkc.function2.insforge.app/db_setup
-// Result me har statement ka status dikhega. Ek baar chalao, phir function delete bhi kar sakte ho.
+// Result shows each statement's status. Run once, then you may delete the function.
 
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";
 const KEY = Deno.env.get("INSFORGE_SERVICE_KEY") ?? "";
@@ -29,7 +29,7 @@ const STATEMENTS: string[] = [
     signal_time TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
 
-  // v4 columns (no-op agar pehle se exist karein)
+  // v4 columns (no-op if they already exist)
   `ALTER TABLE signals ADD COLUMN IF NOT EXISTS result BOOLEAN`,
   `ALTER TABLE signals ADD COLUMN IF NOT EXISTS exit_price DOUBLE PRECISION`,
   `ALTER TABLE signals ADD COLUMN IF NOT EXISTS pnl_pct DOUBLE PRECISION`,

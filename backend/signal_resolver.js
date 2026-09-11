@@ -34,7 +34,7 @@ async function sendEmail(subject: string, text: string): Promise<boolean> {
     const r = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: { "api-key": BREVO, "Content-Type": "application/json" },
-      body: JSON.stringify({ sender: { name: "TradeOptix Signals", email: "noreply@tradeoptix.app" }, to: [{ email: ADMIN }], subject, textContent: text }),
+      body: JSON.stringify({ sender: { name: "TradeOptix Signals", email: Deno.env.get("ALERT_SENDER") || "noreply@tradeoptix.app" }, to: [{ email: ADMIN }], subject, textContent: text }),
     });
     return r.ok;
   } catch { return false; }

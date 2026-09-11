@@ -1,10 +1,10 @@
 // TradeOptix — Strategy Lab — InsForge Edge Function (Deno/TS)
-// Har hafte chalao (cron: "0 2 * * 1") — strategy ko KHUD research karta hai:
-//   1. Parameter variants generate karta hai (RSI thresholds, SL mult, zone bounds, vol filter)
-//   2. BTC/ETH/SOL ke 4H klines pe WALK-FORWARD backtest (70% train / 30% validate — overfit se bachao)
-//   3. Har REGIME (BULL/BEAR/RANGE) ke liye best variant chunta hai
-//   4. strategy_config table me save karta hai → ENGINE agle run se nayi settings use karta hai
-// Ye hai self-changing strategy: bina signal aaye bhi har hafte khud ko upgrade karta hai.
+// Runs weekly (cron: "0 2 * * 1,4") — researches the strategy ITSELF:
+//   1. Generates parameter variants (RSI thresholds, SL mult, zone bounds, vol filter)
+//   2. Walk-forward backtest on BTC/ETH/SOL 4H klines (70% train / 30% validate — avoids overfitting)
+//   3. Picks the best variant per REGIME (BULL/BEAR/RANGE)
+//   4. Saves to strategy_config table -> ENGINE uses the new settings from its next run
+// This is the self-changing strategy: upgrades itself every week, with or without signals.
 
 const BINANCE = "https://data-api.binance.vision/api/v3";
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";

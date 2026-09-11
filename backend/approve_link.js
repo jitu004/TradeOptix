@@ -1,7 +1,7 @@
 // TradeOptix — 1-Click Email Approval — InsForge Edge Function (Deno/TS)
-// Admin ke inbox me jo approval email aata hai, uske "Approve" link pe click = user approved.
-// Token: HMAC-SHA256 signed {email, exp} — JWT_SECRET secret se sign hota hai.
-// Koi login zaroori nahi — sirf link pe click karo.
+// The "Approve" link in the admin's approval email — one click = user approved.
+// Token: HMAC-SHA256 signed {email, exp} — signed with the JWT_SECRET secret.
+// No login required — just click the link.
 
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";
 const KEY = Deno.env.get("INSFORGE_SERVICE_KEY") ?? "";

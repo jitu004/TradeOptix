@@ -1,5 +1,5 @@
 // TradeOptix — Weekly Report API — InsForge Edge Function (Deno/TS)
-// Frontend ka "Weekly Report" panel yehi se data leta hai.
+// The frontend "Weekly Report" panel gets its data from here.
 // App fetches: https://r3pjdfkc.function2.insforge.app/public_weekly
 
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";

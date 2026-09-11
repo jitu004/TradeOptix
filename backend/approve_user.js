@@ -1,5 +1,5 @@
 // TradeOptix — Approve User (ADMIN only) — InsForge Edge Function (Deno/TS)
-// Admin panel se approve -> user ko Brevo email -> user login kar sakta hai.
+// Approve from admin panel -> Brevo email to user -> user can login.
 // Token verify via InsForge /api/auth/sessions/current.
 const BASE = Deno.env.get("INSFORGE_URL") ?? "https://r3pjdfkc.eu-central.insforge.app";
 const KEY = Deno.env.get("INSFORGE_SERVICE_KEY") ?? "";
