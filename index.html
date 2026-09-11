@@ -20,13 +20,14 @@ select,input{background:var(--panel2);color:var(--text);border:1px solid var(--b
 select:focus,input:focus{border-color:var(--yellow)}
 .price-box{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:baseline;gap:12px;font-family:var(--mono)}
 #livePrice{font-size:22px;font-weight:700}
-#priceChg{font-size:13px}
+#livePrice{font-size:28px;font-weight:800;letter-spacing:1.5px;text-shadow:0 0 22px rgba(240,185,11,.3)}
+#priceChg{font-size:12px;font-weight:800;letter-spacing:.5px;padding:4px 11px;border-radius:20px;border:1px solid currentColor;background:rgba(255,255,255,.07);background:color-mix(in srgb,currentColor 15%,transparent)}
 .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 .alert-banner{display:none;padding:10px 20px;font-weight:700;font-size:14px;align-items:center;gap:10px}
 .alert-banner.warn{background:#3d2b00;color:var(--yellow);border-bottom:1px solid #6b4d00}
 .alert-banner.danger{background:#3d1114;color:#ff6b74;border-bottom:1px solid #6b1f24}
-.main{display:grid;grid-template-columns:340px 1fr 320px;gap:14px;padding:14px 20px;max-width:1750px;margin:0 auto}
+.main{display:grid;grid-template-columns:340px 1fr;gap:14px;padding:14px 20px;max-width:1750px;margin:0 auto}
 @media(max-width:1200px){.main{grid-template-columns:1fr}}
 .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px}
 .panel h3{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:12px}
@@ -139,24 +140,6 @@ select:focus,input:focus{border-color:var(--yellow)}
 
   </div>
 
-  <!-- CENTER: CHART -->
-  <div class="panel">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <h3 style="margin:0">📊 Live Chart — TradingView</h3>
-      <span id="wsStatus" style="color:var(--green);font-size:12px">● LIVE</span>
-    </div>
-    <div id="tv_chart" style="height:520px;width:100%"></div>
-    <div class="section-title">💱 Currency Converter (Real-Time)</div>
-    <div class="conv-row">
-      <input type="number" id="convAmt" value="100" min="0">
-      <select id="convFrom" style="flex:1"></select>
-      <span style="color:var(--muted)">→</span>
-      <select id="convTo" style="flex:1"></select>
-    </div>
-    <div class="conv-result" id="convResult">—</div>
-    <div class="conv-rate" id="convRate"></div>
-  </div>
-
   <!-- RIGHT: BACKTEST DETAIL -->
   <div>
     <div class="panel">
@@ -174,12 +157,15 @@ select:focus,input:focus{border-color:var(--yellow)}
       </div>
     </div>
     <div class="panel" style="margin-top:14px">
-      <h3>Trade Log (Last 30)</h3>
-      <div class="trade-log" id="tradeLog"><div style="color:var(--muted);text-align:center;padding:20px">Run a backtest — trades will appear here</div></div>
-    </div>
-    <div class="panel" style="margin-top:14px">
-      <h3>Equity Curve (Backtest)</h3>
-      <canvas id="equityChart"></canvas>
+      <h3>💱 Currency Converter</h3>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+        <input type="number" id="convAmt" value="1" min="0" style="width:86px;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;font-family:var(--mono)">
+        <select id="convFrom" style="flex:1;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px"></select>
+        <span style="color:var(--muted)">→</span>
+        <select id="convTo" style="flex:1;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px"></select>
+      </div>
+      <div id="convResult" style="font-size:20px;font-family:var(--mono);color:var(--yellow)">Loading rates…</div>
+      <div id="convRate" class="note" style="margin-top:6px;font-size:11px"></div>
     </div>
   </div>
 </div>
@@ -907,6 +893,7 @@ const TF_TV={'1m':'1','15m':'15','30m':'30','1h':'60','2h':'120','4h':'240','6h'
 function loadTV(){
   const el=document.getElementById('tv_chart');
   if(!el)return;
+  if(!document.getElementById('tv_chart'))return;
   if(typeof TradingView==='undefined'){setTimeout(loadTV,600);return;}
   el.innerHTML='';
   new TradingView.widget({container_id:'tv_chart',symbol:'BINANCE:'+sym,
