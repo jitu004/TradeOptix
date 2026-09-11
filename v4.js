@@ -125,16 +125,48 @@ async function loadSentimentGauge() {
   } catch (e) { el.innerHTML = '<div class="note">Sentiment engine not deployed yet — backend/market_sentiment.js deploy karo (schedule: 15 min, public ON).</div>'; }
 }
 
-/* ================= AUTH GATE + LOGIN ACTIVITY =================
-   InsForge Auth (Supabase-compatible) — bina login ke site ka content nahi dikhta.
-   ANON_KEY: Dashboard -> Secrets -> INSFORGE_ANON_KEY ki value yahan paste karo.
-   (Anon key browser me safe hoti hai — ye public key hi hoti hai.) */
+/* ================= AUTH GATE (InsForge native auth API — direct fetch) =================
+   Login:    POST /api/auth/sessions        {email,password} -> accessToken + user
+   Signup:   POST /api/auth/users           {email,password} -> user (approval ke liye request)
+   Verify:   GET  /api/auth/sessions/current (Bearer) -> user   [backend functions]
+   ANON_KEY: Dashboard -> Secrets -> INSFORGE_ANON_KEY / ANON_KEY value. */
 const ANON_KEY = 'anon_d4e349cf0f19d19a9a53315e4b667de23297b526c873fe3c4702b22792724c8c';
-const sb = (window.supabase && !ANON_KEY.includes('PASTE_'))
-  ? window.supabase.createClient('https://r3pjdfkc.eu-central.insforge.app', ANON_KEY)
-  : null;
+const IF_BASE = 'https://r3pjdfkc.eu-central.insforge.app';
+const ADMIN_EMAIL = 'j.nagarkoti@outlook.com';
 let authToken = null;
-const ADMIN_EMAIL = 'j.nagarkoti@outlook.com';   // Secrets ke ADMIN_EMAILS se match hona chahiye (aapka email)
+let currentUser = null;
+
+async function apiPost(path, body) {
+  const r = await fetch(IF_BASE + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+    body: JSON.stringify(body),
+  });
+  const d = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, data: d };
+}
+
+function pickToken(d) {
+  return d.accessToken || d.access_token || d.token ||
+    (d.session && (d.session.accessToken || d.session.token)) ||
+    (d.data && (d.data.accessToken || d.data.token)) || '';
+}
+function pickUser(d) {
+  return d.user || (d.data && d.data.user) || d.profile ||
+    (d.data && d.data.email ? d.data : null) || (d.email ? d : null);
+}
+
+function lockScreen(html) {
+  document.documentElement.style.overflow = 'hidden';
+  for (const el of document.body.children) el.style.visibility = 'hidden';
+  document.getElementById('authGate')?.remove();
+  document.body.insertAdjacentHTML('beforeend', `<div id="authGate" style="position:fixed;inset:0;z-index:9999;background:#0b0e11;display:flex;align-items:center;justify-content:center">${html}</div>`);
+}
+
+function unlockApp() {
+  document.documentElement.style.overflow = '';
+  for (const el of document.body.children) el.style.visibility = '';
+}
 
 async function checkApproval(email) {
   try {
@@ -155,24 +187,20 @@ async function submitAccessRequest(email, uid) {
   } catch (e) { /* non-fatal */ }
 }
 
-function lockApp() {
-  document.documentElement.style.overflow = 'hidden';
-  for (const el of document.body.children) {
-    if (el.id !== 'authGate') el.style.visibility = 'hidden';
-  }
+function saveAuth(user, token) {
+  currentUser = user;
+  authToken = token;
+  try { localStorage.setItem('tfx_auth', JSON.stringify({ email: user.email, accessToken: token })); } catch (e) {}
 }
 
-function unlockApp() {
-  document.documentElement.style.overflow = '';
-  for (const el of document.body.children) el.style.visibility = '';
+function clearAuth() {
+  currentUser = null; authToken = null;
+  try { localStorage.removeItem('tfx_auth'); } catch (e) {}
 }
 
 function showLogin(msg, mode) {
-  lockApp();
-  document.getElementById('authGate')?.remove();
   const isReq = mode === 'request';
-  document.body.insertAdjacentHTML('beforeend', `
-  <div id="authGate" style="position:fixed;inset:0;z-index:9999;background:#0b0e11;display:flex;align-items:center;justify-content:center;font-family:inherit">
+  lockScreen(`
     <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;padding:32px 36px;width:360px;color:#e6edf3">
       <div style="font-size:22px;font-weight:800;margin-bottom:4px">⚡ TRADE<span style="color:#f0b90b">OPTIX</span></div>
       <div style="font-size:12px;color:#8b949e;margin-bottom:16px">${isReq ? 'Request access — admin approval ke baad login milega' : 'Private access — sign in to continue'}</div>
@@ -183,34 +211,36 @@ function showLogin(msg, mode) {
       <input id="lgEmail" type="email" placeholder="Email" style="width:100%;box-sizing:border-box;background:#0d1117;border:1px solid #30363d;color:#e6edf3;padding:10px 12px;border-radius:8px;margin-bottom:10px;font-size:14px">
       <input id="lgPass" type="password" placeholder="Password (min 6 chars)" style="width:100%;box-sizing:border-box;background:#0d1117;border:1px solid #30363d;color:#e6edf3;padding:10px 12px;border-radius:8px;margin-bottom:14px;font-size:14px">
       <button id="lgBtn" style="width:100%;background:#f0b90b;border:none;color:#000;font-weight:800;padding:11px;border-radius:8px;font-size:14px;cursor:pointer">${isReq ? 'Submit Request' : 'Sign In'}</button>
-      <div id="lgMsg" style="font-size:12px;color:#f85149;margin-top:10px;min-height:16px">${msg || ''}</div>
-      <div style="font-size:11px;color:#8b949e;margin-top:14px;border-top:1px solid #30363d;padding-top:10px">${isReq ? 'Request submit hone ke baad admin approve karega — approval email aayega.' : 'Access sirf admin-approved accounts ka hai. Naya account? "Request Access" tab dabao.'}</div>
-    </div>
-  </div>`);
+      <div id="lgMsg" style="font-size:12px;color:${(msg || '').includes('✅') ? '#3fb950' : '#f85149'};margin-top:10px;min-height:16px">${msg || ''}</div>
+      <div style="font-size:11px;color:#8b949e;margin-top:14px;border-top:1px solid #30363d;padding-top:10px">${isReq ? 'Request submit hone ke baad admin approve karega — approval email aayega. Signup ke baad agar confirmation email aaye toh usko bhi confirm karna.' : 'Access sirf admin-approved accounts ka hai. Naya account? "Request Access" tab dabao.'}</div>
+    </div>`);
   document.getElementById('tabIn').onclick = () => showLogin('', 'signin');
   document.getElementById('tabReq').onclick = () => showLogin('', 'request');
   const go = async () => {
     const b = document.getElementById('lgBtn'), m = document.getElementById('lgMsg');
     const em = document.getElementById('lgEmail').value.trim();
     const pw = document.getElementById('lgPass').value;
-    b.textContent = isReq ? 'Submitting…' : 'Signing in…'; b.disabled = true; m.textContent = '';
-    if (isReq) {
-      const { data, error } = await sb.auth.signUp({ email: em, password: pw });
-      if (error) { m.textContent = error.message; b.textContent = 'Submit Request'; b.disabled = false; return; }
-      await submitAccessRequest(em, data.user?.id || '');
-      await sb.auth.signOut();
-      showLogin('✅ Request submitted! Jab admin approve karega tab email aayega. Tab tak login blocked hai.', 'signin');
-      return;
+    b.textContent = isReq ? 'Submitting…' : 'Signing in…'; b.disabled = true; m.textContent = ''; m.style.color = '#f85149';
+    try {
+      if (isReq) {
+        const res = await apiPost('/api/auth/users', { email: em, password: pw });
+        const usr = pickUser(res.data);
+        if (!res.ok && !usr) { m.textContent = res.data.message || res.data.error || ('Signup failed (HTTP ' + res.status + ')'); b.textContent = 'Submit Request'; b.disabled = false; return; }
+        await submitAccessRequest(em, (usr && (usr.id || usr.uid)) || '');
+        showLogin('✅ Request submitted! Jab admin approve karega tab email aayega. (Agar confirmation email aaye toh confirm karna.)', 'signin');
+        return;
+      }
+      const res = await apiPost('/api/auth/sessions', { email: em, password: pw });
+      const token = pickToken(res.data), usr = pickUser(res.data);
+      if (!res.ok || !token) { m.textContent = res.data.message || res.data.error || ('Login failed (HTTP ' + res.status + ')'); b.textContent = 'Sign In'; b.disabled = false; return; }
+      const ok = await checkApproval(em.toLowerCase());
+      if (!ok) { showLogin('⏳ Aapki access request abhi PENDING hai. Admin approve karega tab email aayega.', 'signin'); return; }
+      saveAuth(usr || { email: em }, token);
+      await onLogin(usr || { email: em });
+    } catch (e) {
+      m.textContent = 'Error: ' + (e.message || e);
+      b.textContent = isReq ? 'Submit Request' : 'Sign In'; b.disabled = false;
     }
-    const { data, error } = await sb.auth.signInWithPassword({ email: em, password: pw });
-    if (error) { m.textContent = error.message; b.textContent = 'Sign In'; b.disabled = false; return; }
-    const ok = await checkApproval(em.toLowerCase());
-    if (!ok) {
-      await sb.auth.signOut();
-      showLogin('⏳ Aapki access request abhi PENDING hai. Admin approve karega tab email aayega.', 'signin');
-      return;
-    }
-    await onLogin(data.session);
   };
   document.getElementById('lgBtn').onclick = go;
   document.getElementById('lgPass').onkeydown = (e) => { if (e.key === 'Enter') go(); };
@@ -222,25 +252,24 @@ async function recordLogin(email, uid) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, uid }),
     });
-  } catch (e) { /* login record fail = non-fatal */ }
+  } catch (e) { /* non-fatal */ }
 }
 
-async function onLogin(session) {
-  authToken = session.access_token;
-  await recordLogin(session.user.email, session.user.id);
+async function onLogin(user) {
+  await recordLogin(user.email, user.id || user.uid || '');
   document.getElementById('authGate')?.remove();
   unlockApp();
-  addLogoutBtn(session.user.email);
+  addLogoutBtn(user.email);
   startApp();
 }
 
 function addLogoutBtn(email) {
-  const h = document.querySelector('header .hdr-right, header div:last-child, header');
+  const h = document.querySelector('header');
   if (!h || document.getElementById('lgOut')) return;
   h.insertAdjacentHTML('beforeend',
     `<span id="lgUser" style="font-size:11px;color:#8b949e;margin-left:8px">${email}</span>
      <button id="lgOut" style="background:#21262d;border:1px solid #30363d;color:#e6edf3;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:6px">Logout</button>`);
-  document.getElementById('lgOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+  document.getElementById('lgOut').onclick = () => { clearAuth(); location.reload(); };
 }
 
 /* --- Login Activity panel (sirf logged-in users ko dikhta hai) --- */
@@ -256,14 +285,14 @@ async function loadLoginActivity() {
         <b>${l.email}</b><br>
         <span style="color:var(--muted);font-size:11px">${new Date(l.ts).toLocaleString('en-GB')} · ${String(l.ua || '').slice(0, 60)}</span>
       </div>`).join('') || '<div style="color:var(--muted);text-align:center;padding:12px">No logins recorded yet</div>';
-  } catch (e) { el.innerHTML = '<div class="note">Login history sirf logged-in users ko milti hai.</div>'; }
+  } catch (e) { el.innerHTML = '<div class="note">Session expired — Logout karke dobara login karo.</div>'; }
 }
 
 /* --- Access Requests panel (sirf admin ko dikhta hai) --- */
 async function loadAccessRequests() {
   const el = document.getElementById('reqList');
   if (!el || !authToken) return;
-  const me = (sb && (await sb.auth.getUser())?.data?.user?.email || '').toLowerCase();
+  const me = (currentUser && currentUser.email ? currentUser.email : '').toLowerCase();
   if (me !== ADMIN_EMAIL.toLowerCase()) { el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:12px">Admin only</div>'; return; }
   try {
     const r = await fetch(SV_BASE + '/public_requests', { headers: { Authorization: `Bearer ${authToken}` } });
@@ -296,29 +325,15 @@ function startApp() {
   loadAccessRequests(); setInterval(loadAccessRequests, 30000);
 }
 
-/* --- boot: session check --- */
+/* --- boot: session check (gate KABHI bypass nahi hota jab key set hai) --- */
 (async () => {
-  if (!sb) {
-    if (!ANON_KEY.includes('PASTE_')) {
-      // ANON_KEY set hai par auth library load nahi hui — gate KABHI bypass nahi hoga
-      lockApp();
-      document.body.insertAdjacentHTML('beforeend', `
-      <div style="position:fixed;inset:0;z-index:9999;background:#0b0e11;display:flex;align-items:center;justify-content:center">
-        <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;padding:32px 36px;width:360px;color:#e6edf3;text-align:center">
-          <div style="font-size:20px;font-weight:800;margin-bottom:8px">⚠️ Auth library load nahi hui</div>
-          <div style="font-size:12px;color:#8b949e;margin-bottom:16px">Network/ad-blocker ne CDN block kiya hai. Page refresh karo ya ad-blocker band karo.</div>
-          <button onclick="location.reload()" style="background:#f0b90b;border:none;color:#000;font-weight:800;padding:10px 24px;border-radius:8px;cursor:pointer">Retry</button>
-        </div>
-      </div>`);
-      return;
-    }
-    startApp(); return;                                 // sirf dev mode (placeholder key) me gate skip
+  if (ANON_KEY.includes('PASTE_')) { startApp(); return; }          // sirf dev mode (placeholder key)
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem('tfx_auth') || 'null'); } catch (e) {}
+  if (saved && saved.accessToken && saved.email) {
+    const approved = await checkApproval(saved.email.toLowerCase());
+    if (approved) { saveAuth({ email: saved.email }, saved.accessToken); await onLogin({ email: saved.email }); return; }
+    clearAuth();
   }
-  const { data: { session } } = await sb.auth.getSession();
-  if (session) {
-    const ok = await checkApproval(String(session.user.email).toLowerCase());
-    if (ok) { await onLogin(session); }
-    else { await sb.auth.signOut(); showLogin('⏳ Access pending admin approval.', 'signin'); }
-  }
-  else showLogin();
+  showLogin();
 })();
