@@ -150,7 +150,7 @@ async function loadSentimentGauge() {
       ${bar(['Market Breadth', c.market_breadth || 0])}
       ${bar(['Funding Sentiment', c.funding_sentiment || 0])}
       ${bar(['Volatility Regime', c.volatility_regime || 0])}
-      <div style="font-size:10px;color:var(--muted);margin-top:8px">Sentiment signal engine ka quality gate hai — ye decide karta hai kaunse direction ke trades allowed hain.</div>`;
+      <div style="font-size:10px;color:var(--muted);margin-top:8px">Sentiment is the signal engine's quality gate — it decides which trade directions are allowed.</div>`;
   } catch (e) { el.innerHTML = '<div class="note">Sentiment engine is not deployed yet — please deploy backend/market_sentiment.js (schedule: every 15 min, public access ON).</div>'; }
 }
 
@@ -420,7 +420,7 @@ async function loadLiveSignal() {
       <div style="font-size:15px">1) <b style="color:#4ade80">${fmt(tp1)}</b></div>
       <div style="font-size:15px">2) <b style="color:#4ade80">${fmt(tp2)}</b></div>
       <div style="font-size:15px">3) <b style="color:#4ade80">${fmt(tp3)}</b></div>
-      <div style="margin-top:12px;color:#f85149;font-size:11px;letter-spacing:2px;font-weight:800;border-bottom:1px solid #f8514933;padding-bottom:3px">STOP TARGET</div>
+      <div style="margin-top:12px;color:#f85149;font-size:11px;letter-spacing:2px;font-weight:800;border-bottom:1px solid #f8514933;padding-bottom:3px">STOP LOSS</div>
       <div style="font-size:16px">1) <b style="color:#f87171">${fmt(sl)}</b></div>
       <div style="margin-top:12px;font-size:11px;color:var(--muted)">🕐 ${new Date(s.signal_time).toLocaleString('en-GB')}</div>`;
   } catch (e2) { box.innerHTML = '<div style="color:var(--muted);text-align:center;padding:18px 0">Signal feed unreachable…</div>'; }

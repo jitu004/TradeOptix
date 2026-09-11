@@ -159,7 +159,7 @@ select:focus,input:focus{border-color:var(--yellow)}
       <h3 style="margin:0">📊 Live Chart</h3>
       <span class="badge badge-strong" id="tvStatus">🟢 LIVE</span>
     </div>
-    <div id="tv_chart" style="height:520px"></div>
+    <div id="tvScroll" style="overflow-y:auto;max-height:520px;overflow-x:hidden;border-radius:6px"><div id="tv_chart" style="height:800px"></div></div>
   </div>
 
   <!-- RIGHT: CONVERTER -->
@@ -921,8 +921,8 @@ const TF_TV={'1m':'1','15m':'15','30m':'30','1h':'60','2h':'120','4h':'240','6h'
 function loadTV(){
   const el=document.getElementById('tv_chart');
   if(!el)return;
-  const ch=Math.max(430,Math.round(window.innerHeight-510));
-  el.style.height=ch+'px';
+  const chFit=Math.max(400,Math.round(window.innerHeight-510));const chFull=Math.max(640,chFit+170);
+  el.style.height=chFull+'px';const sc=document.getElementById('tvScroll');if(sc)sc.style.maxHeight=chFit+'px';
   if(!document.getElementById('tv_chart'))return;
   if(typeof TradingView==='undefined'){setTimeout(loadTV,600);return;}
   el.innerHTML='';
