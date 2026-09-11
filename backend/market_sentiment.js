@@ -113,9 +113,8 @@ export default async function handler(_req: Request): Promise<Response> {
     } catch { /* RANGE */ }
 
     const score = Math.round(momentum * 0.22 + trend * 0.22 + breadth * 0.22 + funding * 0.12 + volatility * 0.10 + open_interest * 0.12);
-    const bias = regime === "BEAR" ? "BEAR regime — LONGs restricted" : regime === "BULL" ? "BULL regime — SHORTs restricted" : score >= 55 ? "LONG bias" : score <= 45 ? "SHORT bias" : "no bias — range market";
     const label = score >= 75 ? "EXTREME GREED" : score >= 55 ? "GREED" : score > 45 ? "NEUTRAL" : score > 25 ? "FEAR" : "EXTREME FEAR";
-    const bias = score >= 55 ? "LONG bias" : score <= 45 ? "SHORT bias" : "no bias — range market";
+    const bias = regime === "BEAR" ? "BEAR regime — LONGs restricted" : regime === "BULL" ? "BULL regime — SHORTs restricted" : score >= 55 ? "LONG bias" : score <= 45 ? "SHORT bias" : "no bias — range market";
 
     const payload = {
       score, label, bias, at: new Date().toISOString(),

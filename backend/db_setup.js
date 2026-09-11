@@ -97,6 +97,9 @@ const STATEMENTS: string[] = [
     approved_at TIMESTAMPTZ,
     approved_by TEXT
   )`,
+  // cleanup: ACTIVE duplicates — keep lowest tier per symbol, then oldest
+  `DELETE FROM signals a USING signals b WHERE a.status='ACTIVE' AND b.status='ACTIVE' AND a.symbol=b.symbol AND a.id<>b.id AND a.tier > b.tier`,
+  `DELETE FROM signals a USING signals b WHERE a.status='ACTIVE' AND b.status='ACTIVE' AND a.symbol=b.symbol AND a.tier=b.tier AND a.id > b.id AND a.id<>b.id`
 ];
 
 async function runOne(sql: string): Promise<{ ok: boolean; error?: string }> {

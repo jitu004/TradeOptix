@@ -178,6 +178,11 @@ export default async function handler(_req: Request): Promise<Response> {
       val_wr: +(best.val * 100).toFixed(1),
       top3: results.slice(0, 3).map((r) => ({ ...r.p, val_wr: +(r.val * 100).toFixed(1) })),
     };
+    // GUARD: negative validation = losing params -> keep previous config, do NOT overwrite
+    if (best.val < 0.30) {
+      await runSql(`INSERT INTO engine_logs (level,message) VALUES ('WARN','STRATEGY LAB: best val_wr=${cfg.val_wr}% too low — previous config KEPT (no change)')`);
+      return new Response(JSON.stringify({ kept_previous: true, rejected_val_wr: cfg.val_wr, note: "Best params failed validation — existing config unchanged." }, null, 1), { status: 200, headers: cors });
+    }
     await runSql(`INSERT INTO strategy_config (id,config) VALUES (1,'${esc(JSON.stringify(cfg))}'::jsonb) ON CONFLICT (id) DO UPDATE SET config=EXCLUDED.config`);
     await runSql(`INSERT INTO engine_logs (level,message) VALUES ('INFO','🧪 STRATEGY LAB: nayi config! val_winrate=${cfg.val_wr}% train=${cfg.train_wr}% | sl=${best.p.slMult} zone=${best.p.zLMin}-${best.p.zLMax} vol=${best.p.volMult} | regime=${reg}')`);
     return new Response(JSON.stringify(cfg, null, 1), { status: 200, headers: cors });

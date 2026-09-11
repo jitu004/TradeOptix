@@ -13,7 +13,7 @@
 
 const BINANCE = "https://data-api.binance.vision/api/v3";
 const TOP_N = 40;
-const QUOTA_PER_DAY = 10;
+const QUOTA_PER_DAY = +(Deno.env.get("SIGNALS_PER_DAY") || 10);   // FILLER quota only (T3/T4); quality T1/T2 signals are always taken, like a disciplined trader
 const RSI_BUY = 70, RSI_SELL = 30, SL_ATR = 2.0, RR = 3.0;
 
 // Correlation groups — same-group coins move together; only ONE active trade per group (portfolio risk control)
@@ -311,7 +311,11 @@ async function getStrategy(): Promise<any> {
   const def = { rsiBuy: 70, rsiSell: 30, zLMin: 55, zLMax: 75, zSMin: 25, zSMax: 45, slMult: 2.0, volMult: 1.2 };
   try {
     const rows = await runSql(`SELECT config FROM strategy_config WHERE id=1 LIMIT 1`);
-    if (rows.length) return { ...def, ...(JSON.parse(rows[0].config || "{}").params || {}) };
+    if (rows.length) {
+      const cfg = JSON.parse(rows[0].config || "{}");
+      if (cfg.val_wr != null && +cfg.val_wr < 30) return def;   // reject losing config -> safe defaults
+      return { ...def, ...(cfg.params || {}) };
+    }
   } catch { /* defaults */ }
   return def;
 }
@@ -448,7 +452,6 @@ export default async function handler(_req: Request, _ctx: unknown): Promise<Res
   if (madeToday < quotaToday) {
     // PASS 1: 1D full confluence (T1) — parallel scan (8 at a time)
     await scanBatch(coins.filter((s2) => !doneToday.has(s2) && !pumpSet.has(s2)), async (sym) => {
-      if (madeToday >= quotaToday) return null;
       try {
         const kl1d = await fetchKlines(sym, "1d");
         trendCache.set(sym, trend1d(kl1d));
@@ -496,7 +499,7 @@ export default async function handler(_req: Request, _ctx: unknown): Promise<Res
       cands.push(...found);
       cands.sort((a, b) => b.sig.score - a.sig.score);
       for (const { sym, sig, aligned, tf, tier } of cands) {
-        if (madeToday >= quotaToday) break;
+        if (tier >= 3 && madeToday >= quotaToday) break;   // quota applies to FILLER only; quality (T1/T2) trades unlimited
         await insert(sym, tf, sig, tier, aligned);
       }
     }
