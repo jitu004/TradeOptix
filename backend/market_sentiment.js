@@ -89,18 +89,44 @@ export default async function handler(_req: Request): Promise<Response> {
     const atrPct = (atrSum / kld.length) / kld[kld.length - 1].c * 100;
     const volatility = clamp(100 - (atrPct - 1) * 40);      // 1% ATR → 100, 3.5%+ → 0
 
-    const score = Math.round(momentum * 0.25 + trend * 0.25 + breadth * 0.25 + funding * 0.15 + volatility * 0.10);
+    // 6) Open Interest (BTC perp) — rising OI = leverage buildup
+    let open_interest = 50;
+    try {
+      const oi = await (await fetch(`${FAPI}/openInterestHist?symbol=BTCUSDT&period=5m&limit=200`)).json();
+      if (Array.isArray(oi) && oi.length > 20) {
+        const cur = +oi[oi.length - 1].sumOpenInterest;
+        const avg = oi.slice(-100).reduce((x: number, y: any) => x + +y.sumOpenInterest, 0) / 100;
+        open_interest = clamp(50 + ((cur - avg) / avg) * 300);
+      }
+    } catch { /* neutral */ }
+
+    // 7) Market regime — BTC 1D vs EMA50/EMA200 + 30d return
+    let regime = "RANGE";
+    try {
+      const kd = await fetchKlines("BTCUSDT", "1d", 260);
+      const cd = kd.map((k: any) => k.c);
+      const e50 = ema(cd, 50), e200 = ema(cd, 200);
+      const last = cd[cd.length - 1];
+      const ret30 = ((last - cd[cd.length - 30]) / cd[cd.length - 30]) * 100;
+      if (last > e50[e50.length - 1] && e50[e50.length - 1] > e200[e200.length - 1] && ret30 > 5) regime = "BULL";
+      else if (last < e50[e50.length - 1] && e50[e50.length - 1] < e200[e200.length - 1] && ret30 < -5) regime = "BEAR";
+    } catch { /* RANGE */ }
+
+    const score = Math.round(momentum * 0.22 + trend * 0.22 + breadth * 0.22 + funding * 0.12 + volatility * 0.10 + open_interest * 0.12);
+    const bias = regime === "BEAR" ? "BEAR regime — LONGs restricted" : regime === "BULL" ? "BULL regime — SHORTs restricted" : score >= 55 ? "LONG bias" : score <= 45 ? "SHORT bias" : "no bias — range market";
     const label = score >= 75 ? "EXTREME GREED" : score >= 55 ? "GREED" : score > 45 ? "NEUTRAL" : score > 25 ? "FEAR" : "EXTREME FEAR";
     const bias = score >= 55 ? "LONG bias" : score <= 45 ? "SHORT bias" : "no bias — range market";
 
     const payload = {
       score, label, bias, at: new Date().toISOString(),
+      regime,
       components: {
         btc_momentum_24h: +momentum.toFixed(1),
         btc_trend_4h: +trend.toFixed(1),
         market_breadth: +breadth.toFixed(1),
         funding_sentiment: +funding.toFixed(1),
         volatility_regime: +volatility.toFixed(1),
+        open_interest: +open_interest.toFixed(1),
       },
     };
 

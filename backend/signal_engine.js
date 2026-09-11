@@ -12,7 +12,7 @@
 // Har action engine_logs me likha jata hai (frontend Live Logs panel).
 
 const BINANCE = "https://data-api.binance.vision/api/v3";
-const TOP_N = 25;
+const TOP_N = 40;
 const QUOTA_PER_DAY = 10;
 const RSI_BUY = 70, RSI_SELL = 30, SL_ATR = 2.0, RR = 3.0;
 
@@ -37,12 +37,24 @@ async function log(level: string, message: string): Promise<void> {
 }
 
 // ---------- sentiment gate ----------
-async function getSentiment(): Promise<{ score: number; label: string }> {
+async function getSentiment(): Promise<{ score: number; label: string; regime: string }> {
   try {
-    const rows = await runSql(`SELECT score,label FROM sentiment ORDER BY ts DESC LIMIT 1`);
-    if (rows.length) return { score: rows[0].score, label: rows[0].label };
+    const rows = await runSql(`SELECT score,label,components FROM sentiment ORDER BY ts DESC LIMIT 1`);
+    if (rows.length) {
+      let regime = "RANGE";
+      try { regime = (JSON.parse(rows[0].components || "{}").regime) || "RANGE"; } catch { /* */ }
+      return { score: rows[0].score, label: rows[0].label, regime };
+    }
   } catch { /* table missing → neutral */ }
-  return { score: 50, label: "NEUTRAL" };
+  return { score: 50, label: "NEUTRAL", regime: "RANGE" };
+}
+
+async function getNewsScore(): Promise<number> {
+  try {
+    const rows = await runSql(`SELECT score FROM news_score ORDER BY ts DESC LIMIT 1`);
+    if (rows.length) return +rows[0].score || 0;
+  } catch { /* */ }
+  return 0;
 }
 
 function sentimentAllows(score: number, dir: 1 | -1): boolean {
@@ -53,15 +65,82 @@ function sentimentAllows(score: number, dir: 1 | -1): boolean {
   return true;                          // neutral
 }
 
+function regimeAllows(regime: string, dir: 1 | -1): boolean {
+  if (regime === "BEAR") return dir === -1;   // bear market — LONGs restricted
+  if (regime === "BULL") return dir === 1;    // bull market — SHORTs restricted
+  return true;
+}
+
+// ---------- self-learning weights — HAR RUN pe update (7d recent + 14d stable blend) ----------
+type Weights = { tierW: Record<string, number>; patW: number; dirW: Record<string, number> };
+let lastLearnDay = "";
+
+async function getWeights(): Promise<Weights> {
+  const def: Weights = { tierW: { "1": 1, "2": 1, "3": 1, "4": 1 }, patW: 1, dirW: { "1": 1, "-1": 1 } };
+  const calc = async (days: number): Promise<Weights | null> => {
+    const rows = await runSql(`SELECT tier, direction, pattern, result, count(*)::int AS c FROM signals WHERE status='RESOLVED' AND signal_time >= now() - interval '${days} days' GROUP BY 1,2,3,4`);
+    if (!rows.length) return null;
+    const acc = (o: Record<string, { t: number; f: number }>, k: string, r: any) => {
+      o[k] = o[k] || { t: 0, f: 0 };
+      if (r.result === true) o[k].t += +r.c; else o[k].f += +r.c;
+    };
+    const tier: Record<string, { t: number; f: number }> = {};
+    const dir: Record<string, { t: number; f: number }> = {};
+    const pat: Record<string, { t: number; f: number }> = {};
+    let anyTier = false;
+    for (const r of rows) {
+      acc(tier, String(r.tier), r);
+      acc(dir, String(r.direction), r);
+      if (r.pattern) acc(pat, "p", r); else acc(pat, "n", r);
+      anyTier = true;
+    }
+    if (!anyTier) return null;
+    const w = (bb: { t: number; f: number } | undefined): number => {
+      if (!bb) return 1;
+      const tot = bb.t + bb.f;
+      if (tot < 3) return 1;
+      const tp = bb.t / tot;
+      return Math.max(0.6, Math.min(1.4, 0.55 + tp));
+    };
+    const out: Weights = { tierW: {}, patW: 1, dirW: {} };
+    for (const k of Object.keys(tier)) out.tierW[k] = w(tier[k]);
+    for (const k of Object.keys(dir)) out.dirW[k] = w(dir[k]);
+    const pw = w(pat["p"]), nw = w(pat["n"]);
+    out.patW = pw * (pw >= nw ? 1.05 : 0.95);
+    return out;
+  };
+  try {
+    const w7 = await calc(7);     // roz ka recent behaviour — fast adaptation
+    const w14 = await calc(14);   // stable base
+    const pick = (a2: number | undefined, b2: number | undefined) => (a2 !== undefined && b2 !== undefined) ? 0.6 * a2 + 0.4 * b2 : (a2 ?? b2 ?? 1);
+    for (const k of ["1", "2", "3", "4"]) def.tierW[k] = pick(w7?.tierW[k], w14?.tierW[k]);
+    for (const k of ["1", "-1"]) def.dirW[k] = pick(w7?.dirW[k], w14?.dirW[k]);
+    def.patW = pick(w7?.patW, w14?.patW);
+
+    // DAILY LEARN log — roz ek baar poori report
+    const today = new Date().toISOString().slice(0, 10);
+    if (today !== lastLearnDay) {
+      lastLearnDay = today;
+      await log("INFO", `📚 DAILY LEARN [${today}] weights: T1=${def.tierW["1"].toFixed(2)} T2=${def.tierW["2"].toFixed(2)} T3=${def.tierW["3"].toFixed(2)} T4=${def.tierW["4"].toFixed(2)} | pattern=${def.patW.toFixed(2)} | LONG=${def.dirW["1"].toFixed(2)} SHORT=${def.dirW["-1"].toFixed(2)}`);
+    }
+  } catch { /* neutral */ }
+  return def;
+}
+
 // ---------- coin universe ----------
-async function topCoins(): Promise<string[]> {
+async function topCoins(): Promise<{ coins: string[]; pumps: Set<string> }> {
   const r = await fetch(`${BINANCE}/ticker/24hr`);
   const all = await r.json();
-  return all
+  const pumps = new Set<string>();
+  for (const t of all) {
+    if (t.symbol.endsWith("USDT") && Math.abs(+t.priceChangePercent) > 12) pumps.add(t.symbol); // pump/dump zone
+  }
+  const coins = all
     .filter((t: any) => t.symbol.endsWith("USDT") && !/(UP|DOWN|BULL|BEAR)/.test(t.symbol) && +t.lastPrice > 0)
     .sort((a: any, b: any) => +b.quoteVolume - +a.quoteVolume)
     .slice(0, TOP_N)
     .map((t: any) => t.symbol);
+  return { coins, pumps };
 }
 
 // ---------- indicators ----------
@@ -123,7 +202,7 @@ function vwap(k: any[]): (number | null)[] {
 }
 
 async function fetchKlines(sym: string, tf: string): Promise<any[]> {
-  const r = await fetch(`${BINANCE}/klines?symbol=${sym}&interval=${tf}&limit=400`);
+  const r = await fetch(`${BINANCE}/klines?symbol=${sym}&interval=${tf}&limit=300`);
   const raw = await r.json();
   return raw.map((x: any[]) => ({ t: x[0], o: +x[1], h: +x[2], l: +x[3], c: +x[4], v: +x[5] }));
 }
@@ -139,10 +218,27 @@ function trend1d(kl: any[]): 1 | -1 | 0 {
   return 0;
 }
 
+// ---------- candlestick patterns (last closed candle) ----------
+function patterns(kl: any[]) {
+  const i = kl.length - 2;
+  if (i < 1) return { bull: false, bear: false };
+  const c = kl[i], p = kl[i - 1];
+  const body = Math.abs(c.c - c.o), range = Math.max(c.h - c.l, 1e-12);
+  const pBull = p.c > p.o, pBear = p.c < p.o;
+  const cBull = c.c > c.o, cBear = c.c < c.o;
+  const bullEngulf = pBear && cBull && c.c >= p.o && c.o <= p.c;
+  const bearEngulf = pBull && cBear && c.c <= p.o && c.o >= p.c;
+  const lowerWick = Math.min(c.o, c.c) - c.l;
+  const upperWick = c.h - Math.max(c.o, c.c);
+  const hammer = range > 3 * body && lowerWick / range > 0.6;
+  const shooting = range > 3 * body && upperWick / range > 0.6;
+  return { bull: bullEngulf || hammer, bear: bearEngulf || shooting, name: bullEngulf ? 'BullEngulf' : hammer ? 'Hammer' : bearEngulf ? 'BearEngulf' : shooting ? 'ShootingStar' : '' };
+}
+
 // ---------- tiered detection ----------
 // Tier 1-3: RSI CROSS based (quality events, strict)
 // Tier 4:   RSI ZONE based (state-based — quota fill ke liye, zyada frequent)
-function detect(kl: any[], tier: number) {
+function detect(kl: any[], tier: number, p: any) {
   const closes = kl.map((x) => x.c);
   if (closes.length < 210) return null;
   const eF = ema(closes, 20), eS = ema(closes, 50), eL = ema(closes, 200);
@@ -153,19 +249,32 @@ function detect(kl: any[], tier: number) {
   for (let j = 0; j < kl.length; j++) { vs += kl[j].v; if (j >= 20) vs -= kl[j - 20].v; volMA[j] = j >= 19 ? vs / 20 : null; }
   const i = kl.length - 2;
   const entry = closes[closes.length - 1], v = vw[i];
+  const pat = patterns(kl);
   if (volMA[i] === null) return null;
-  const volOK = tier >= 2 || kl[i].v > 1.2 * volMA[i];
+  const volOK = tier >= 2 || kl[i].v > p.volMult * volMA[i];
   const stOK = tier >= 4 || (st[i] !== null && dir[i] === 1);
   const stOKS = tier >= 4 || (st[i] !== null && dir[i] === -1);
 
+  // ---- Pattern-based (tier>=2): trend + supertrend + volume + candlestick pattern ----
+  if (tier >= 2 && pat.bull && eF[i] > eS[i] && eS[i] > eL[i] && stOK
+    && (v === null || closes[i] > v) && volOK && closes[i] > eF[i]) {
+    const r = p.slMult * at[i];
+    return { dir: 1 as const, entry, sl: entry - r, tp1: entry + r, tp2: entry + 2 * r, tp3: entry + 3 * r, atr: at[i], score: 1.25 * kl[i].v / (volMA[i] || 1), pat: pat.name };
+  }
+  if (tier >= 2 && pat.bear && eF[i] < eS[i] && eS[i] < eL[i] && stOKS
+    && (v === null || closes[i] < v) && volOK && closes[i] < eF[i]) {
+    const r = p.slMult * at[i];
+    return { dir: -1 as const, entry, sl: entry + r, tp1: entry - r, tp2: entry - 2 * r, tp3: entry - 3 * r, atr: at[i], score: 1.25 * kl[i].v / (volMA[i] || 1), pat: pat.name };
+  }
+
   // ---- Tier 4: state-based (RSI zone, no cross needed) — frequent setups for quota ----
   if (tier >= 4) {
-    if (eF[i] > eS[i] && eS[i] > eL[i] && closes[i] > eF[i] && rs[i] >= 55 && rs[i] <= 75) {
-      const r = SL_ATR * at[i];
+    if (eF[i] > eS[i] && eS[i] > eL[i] && closes[i] > eF[i] && rs[i] >= p.zLMin && rs[i] <= p.zLMax) {
+      const r = p.slMult * at[i];
       return { dir: 1 as const, entry, sl: entry - r, tp1: entry + r, tp2: entry + 2 * r, tp3: entry + 3 * r, atr: at[i], score: kl[i].v / (volMA[i] || 1) };
     }
-    if (eF[i] < eS[i] && eS[i] < eL[i] && closes[i] < eF[i] && rs[i] <= 45 && rs[i] >= 25) {
-      const r = SL_ATR * at[i];
+    if (eF[i] < eS[i] && eS[i] < eL[i] && closes[i] < eF[i] && rs[i] <= p.zSMax && rs[i] >= p.zSMin) {
+      const r = p.slMult * at[i];
       return { dir: -1 as const, entry, sl: entry + r, tp1: entry - r, tp2: entry - 2 * r, tp3: entry - 3 * r, atr: at[i], score: kl[i].v / (volMA[i] || 1) };
     }
     return null;
@@ -173,29 +282,68 @@ function detect(kl: any[], tier: number) {
 
   // ---- Tier 1-3: cross-based ----
   if (eF[i] > eS[i] && eS[i] > eL[i] && stOK && (tier >= 3 || (v !== null && closes[i] > v))
-    && rs[i - 1] < RSI_BUY && rs[i] >= RSI_BUY && closes[i] > eF[i] && volOK) {
+    && rs[i - 1] < p.rsiBuy && rs[i] >= p.rsiBuy && closes[i] > eF[i] && volOK) {
     const r = SL_ATR * at[i];
-    return { dir: 1 as const, entry, sl: entry - r, tp1: entry + r, tp2: entry + 2 * r, tp3: entry + 3 * r, atr: at[i], score: kl[i].v / (volMA[i] || 1) };
+    return { dir: 1 as const, entry, sl: entry - r, tp1: entry + r, tp2: entry + 2 * r, tp3: entry + 3 * r, atr: at[i], score: (pat.bull ? 1.3 : 1) * kl[i].v / (volMA[i] || 1), pat: pat.bull ? pat.name : '' };
   }
   if (eF[i] < eS[i] && eS[i] < eL[i] && stOKS && (tier >= 3 || (v !== null && closes[i] < v))
-    && rs[i - 1] > RSI_SELL && rs[i] <= RSI_SELL && closes[i] < eF[i] && volOK) {
+    && rs[i - 1] > p.rsiSell && rs[i] <= p.rsiSell && closes[i] < eF[i] && volOK) {
     const r = SL_ATR * at[i];
-    return { dir: -1 as const, entry, sl: entry + r, tp1: entry - r, tp2: entry - 2 * r, tp3: entry - 3 * r, atr: at[i], score: kl[i].v / (volMA[i] || 1) };
+    return { dir: -1 as const, entry, sl: entry + r, tp1: entry - r, tp2: entry - 2 * r, tp3: entry - 3 * r, atr: at[i], score: (pat.bear ? 1.3 : 1) * kl[i].v / (volMA[i] || 1), pat: pat.bear ? pat.name : '' };
   }
   return null;
+}
+
+// ---------- Strategy Lab config (weekly self-optimized params) ----------
+async function getStrategy(): Promise<any> {
+  const def = { rsiBuy: 70, rsiSell: 30, zLMin: 55, zLMax: 75, zSMin: 25, zSMax: 45, slMult: 2.0, volMult: 1.2 };
+  try {
+    const rows = await runSql(`SELECT config FROM strategy_config WHERE id=1 LIMIT 1`);
+    if (rows.length) return { ...def, ...(JSON.parse(rows[0].config || "{}").params || {}) };
+  } catch { /* defaults */ }
+  return def;
+}
+
+// Parallel scan: 8 coins at a time (gateway-timeout se bachne ke liye)
+async function scanBatch<T>(items: string[], fn: (sym: string) => Promise<T | null>): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < items.length; i += 8) {
+    const res = await Promise.all(items.slice(i, i + 8).map(fn));
+    for (const r of res) if (r) out.push(r);
+  }
+  return out;
 }
 
 // ---------- main ----------
 export default async function handler(_req: Request, _ctx: unknown): Promise<Response> {
   const started = Date.now();
   let coins: string[] = [];
-  try { coins = await topCoins(); }
+  let pumpSet = new Set<string>();
+  try { const t = await topCoins(); coins = t.coins; pumpSet = t.pumps; }
   catch (e) { await log("ERROR", "topCoins failed: " + String(e)); return new Response(JSON.stringify({ error: String(e) }), { status: 502 }); }
 
   const sent = await getSentiment();
+  const newsScore = await getNewsScore();
+  const strat = await getStrategy();
+  // AUTO-QUOTA: recent 7d true% -> quota self-regulate (55%+ => 15, <40% => 6, else 10)
+  let quotaToday = QUOTA_PER_DAY;
+  try {
+    const q = await runSql(`SELECT count(*)::int AS c, count(*) FILTER (WHERE result=true)::int AS t FROM signals WHERE status='RESOLVED' AND resolved_at >= now() - interval '7 days'`);
+    if (q[0] && q[0].c >= 10) {
+      const tp = q[0].t / q[0].c;
+      quotaToday = tp > 0.55 ? 15 : tp < 0.40 ? 6 : 10;
+      if (quotaToday !== QUOTA_PER_DAY) await log("INFO", `Auto-quota: 7d true%=${(tp * 100).toFixed(0)} → quota aaj ${quotaToday}/day`);
+    }
+  } catch { /* default quota */ }
+  const sentEff = Math.max(0, Math.min(100, sent.score + newsScore * 2));  // news sentiment ko shift karta hai
+  const qualityOnly = Math.abs(newsScore) >= 4;   // major news event = sirf best quality
+  const weights = await getWeights();
+  if (qualityOnly) await log("WARN", `📰 NEWS MODE ON (score ${newsScore}) — sirf T1 quality signals`);
+  if (sent.regime !== "RANGE") await log("INFO", `Regime: ${sent.regime}`);
+  await log("INFO", `Learned weights: T1=${(weights.tierW["1"]||1).toFixed(2)} T2=${(weights.tierW["2"]||1).toFixed(2)} T3=${(weights.tierW["3"]||1).toFixed(2)} T4=${(weights.tierW["4"]||1).toFixed(2)} | pattern=${weights.patW.toFixed(2)} | LONG=${(weights.dirW["1"]||1).toFixed(2)} SHORT=${(weights.dirW["-1"]||1).toFixed(2)}`);
   let madeToday = (await runSql(`SELECT count(*)::int AS c FROM signals WHERE signal_time >= now()::date`))[0]?.c ?? 0;
-  const logs: string[] = [`sentiment ${sent.score}/100 ${sent.label} — quota ${madeToday}/${QUOTA_PER_DAY}`];
-  await log("INFO", `Engine run — sentiment ${sent.score}/100 (${sent.label}), quota ${madeToday}/${QUOTA_PER_DAY}`);
+  const logs: string[] = [`sentiment ${sent.score}/100 ${sent.label} — quota ${madeToday}/${quotaToday}`];
+  await log("INFO", `Engine run — sentiment ${sent.score}/100 (${sent.label}), quota ${madeToday}/${quotaToday}`);
 
   const doneRows = await runSql(`SELECT DISTINCT symbol FROM signals WHERE signal_time >= now()::date`);
   const doneToday = new Set(doneRows.map((r: any) => r.symbol));
@@ -211,12 +359,17 @@ export default async function handler(_req: Request, _ctx: unknown): Promise<Res
   }
 
   async function insert(sym: string, tf: string, sig: any, tier: number, sentAligned: boolean): Promise<void> {
-    await runSql(`INSERT INTO signals (symbol,timeframe,direction,entry_price,stop_loss,take_profit,atr,rr_ratio,status,tier) VALUES ('${esc(sym)}','${tf}',${sig.dir},${sig.entry},${sig.sl},${sig.tp3},${sig.atr},${RR},'ACTIVE',${tier})`);
+    const tw = weights.tierW[String(tier)] ?? 1, dw = weights.dirW[String(sig.dir)] ?? 1, pw = sig.pat ? weights.patW : 1;
+    const wMult = tw * dw * pw;
+    if (wMult !== 1) sig.score = sig.score * wMult;
+    const patCol = sig.pat ? `'${esc(sig.pat)}'` : "NULL";
+    await runSql(`INSERT INTO signals (symbol,timeframe,direction,entry_price,stop_loss,take_profit,atr,rr_ratio,status,tier,pattern) VALUES ('${esc(sym)}','${tf}',${sig.dir},${sig.entry},${sig.sl},${sig.tp3},${sig.atr},${RR},'ACTIVE',${tier},${patCol})`);
     madeToday++;
     made.push(`${sym} ${tf} T${tier}`);
     const tag = sentAligned ? "sentiment-aligned ⭐" : tier === 1 ? "full confluence" : `tier ${tier} relaxed`;
+    if (sig.pat) sig.score = sig.score; // pattern already in score
     logs.push(`OK ${sym} ${tf} T${tier} ${sig.dir === 1 ? "LONG" : "SHORT"}`);
-    await log("SIGNAL", `${sym} ${tf.toUpperCase()} ${sig.dir === 1 ? "LONG" : "SHORT"} @ ${sig.entry.toFixed(4)} (${tag}, quota ${madeToday}/${QUOTA_PER_DAY})`);
+    await log("SIGNAL", `${sym} ${tf.toUpperCase()} ${sig.dir === 1 ? "LONG" : "SHORT"} @ ${sig.entry.toFixed(4)} (${tag}, quota ${madeToday}/${quotaToday})`);
     await whatsappAlert(sym, tf, sig, tier);
   }
 
@@ -235,49 +388,53 @@ export default async function handler(_req: Request, _ctx: unknown): Promise<Res
     }
   }
 
-  if (madeToday < QUOTA_PER_DAY) {
-    // PASS 1: 1D full confluence (T1) — MTF: 1D signal apne hi trend ke saath hota hai, sentiment gate applies
-    for (const sym of coins) {
-      if (madeToday >= QUOTA_PER_DAY) break;
-      if (doneToday.has(sym)) continue;
+  if (madeToday < quotaToday) {
+    // PASS 1: 1D full confluence (T1) — parallel scan (8 at a time)
+    await scanBatch(coins.filter((s2) => !doneToday.has(s2) && !pumpSet.has(s2)), async (sym) => {
+      if (madeToday >= quotaToday) return null;
       try {
         const kl1d = await fetchKlines(sym, "1d");
         trendCache.set(sym, trend1d(kl1d));
-        const sig = detect(kl1d, 1);
-        if (!sig) continue;
-        if (!sentimentAllows(sent.score, sig.dir)) { logs.push(`-- ${sym}: 1d setup but sentiment blocks ${sig.dir === 1 ? "LONG" : "SHORT"}`); continue; }
+        const sig = detect(kl1d, 1, strat);
+        if (!sig) return null;
+        if (!sentimentAllows(sentEff, sig.dir) || !regimeAllows(sent.regime, sig.dir)) { logs.push(`-- ${sym}: 1d setup but sentiment/regime blocks ${sig.dir === 1 ? "LONG" : "SHORT"}`); return null; }
         const recent = await runSql(`SELECT 1 FROM signals WHERE symbol='${esc(sym)}' AND timeframe='1d' AND signal_time >= now() - interval '24 hours' LIMIT 1`);
-        if (recent.length > 0) continue;
-        const aligned = (sent.score >= 55 && sig.dir === 1) || (sent.score <= 45 && sig.dir === -1);
+        if (recent.length > 0) return null;
+        const aligned = (sentEff >= 55 && sig.dir === 1) || (sentEff <= 45 && sig.dir === -1);
         if (aligned) sig.score *= 1.15;
         await insert(sym, "1d", sig, 1, aligned);
-      } catch (e) { logs.push(`WARN ${sym} 1d: ${String(e)}`); }
-    }
+        return { sym };
+      } catch (e) { logs.push(`WARN ${sym} 1d: ${String(e)}`); return null; }
+    });
 
     // PASS 2: quota fill — 4H setup + 1D trend alignment (MTF) + sentiment gate, tiered relax T2→T4
-    for (let tier = 2; tier <= 4 && madeToday < QUOTA_PER_DAY; tier++) {
+    for (let tier = 2; tier <= (qualityOnly ? 2 : 4) && madeToday < quotaToday; tier++) {
       const cands: { sym: string; sig: any; aligned: boolean }[] = [];
-      for (const sym of coins) {
-        if (doneToday.has(sym) || made.some((m) => m.startsWith(sym))) continue;
+      const skips = new Set([...doneToday, ...made.map((m) => m.split(" ")[0]), ...pumpSet]);
+      const found = await scanBatch(coins.filter((s2) => !skips.has(s2)), async (sym) => {
         try {
-          const sig = detect(await fetchKlines(sym, "4h"), tier);
-          if (!sig) continue;
+          let sig = detect(await fetchKlines(sym, "4h"), tier, strat);
+          let tf = "4h";
+          if (!sig && tier >= 3) { sig = detect(await fetchKlines(sym, "1h"), tier, strat); tf = "1h"; }
+          if (!sig) return null;
           const t1 = await t1d(sym);
-          if (t1 !== sig.dir) { logs.push(`-- ${sym}: 4h ${sig.dir === 1 ? "LONG" : "SHORT"} but 1D trend mismatch (MTF block)`); continue; }
-          if (!sentimentAllows(sent.score, sig.dir)) continue;
-          const aligned = (sent.score >= 55 && sig.dir === 1) || (sent.score <= 45 && sig.dir === -1);
+          if (t1 !== sig.dir) { logs.push(`-- ${sym}: 4h ${sig.dir === 1 ? "LONG" : "SHORT"} but 1D trend mismatch (MTF block)`); return null; }
+          if (!sentimentAllows(sentEff, sig.dir) || !regimeAllows(sent.regime, sig.dir)) return null;
+          const aligned = (sentEff >= 55 && sig.dir === 1) || (sentEff <= 45 && sig.dir === -1);
           if (aligned) sig.score *= 1.15;
-          cands.push({ sym, sig, aligned });
-        } catch { /* skip */ }
-      }
+          return { sym, sig, aligned, tf };
+        } catch { return null; }
+      });
+      cands.push(...found);
       cands.sort((a, b) => b.sig.score - a.sig.score);
-      for (const { sym, sig, aligned } of cands) {
-        if (madeToday >= QUOTA_PER_DAY) break;
-        await insert(sym, "4h", sig, tier, aligned);
+      for (const { sym, sig, aligned, tf } of cands) {
+        if (madeToday >= quotaToday) break;
+        await insert(sym, tf || "4h", sig, tier, aligned);
       }
     }
   }
 
+  if (pumpSet.size) await log("WARN", `🚨 Pump-filter: ${pumpSet.size} coins skipped (12%+ move — trap zone)`);
   const msg = `Engine run done in ${Date.now() - started}ms — sentiment ${sent.score} ${sent.label}, ${madeToday}/${QUOTA_PER_DAY} today. New: ${made.join(", ") || "none"}`;
   await log("INFO", msg);
   return new Response(JSON.stringify({ sentiment: sent, quota: `${madeToday}/${QUOTA_PER_DAY}`, new_signals: made, at: new Date().toISOString(), logs }, null, 2), {

@@ -36,6 +36,8 @@ const STATEMENTS: string[] = [
   `ALTER TABLE signals ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ`,
   `ALTER TABLE signals ADD COLUMN IF NOT EXISTS tier SMALLINT DEFAULT 1`,
 
+  `ALTER TABLE signals ADD COLUMN IF NOT EXISTS pattern TEXT`,
+
   // realtime log capture
   `CREATE TABLE IF NOT EXISTS engine_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -71,6 +73,19 @@ const STATEMENTS: string[] = [
   )`,
 
   // access requests (signup -> admin approval flow)
+  `CREATE TABLE IF NOT EXISTS strategy_config (
+    id INTEGER PRIMARY KEY,
+    config JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS news_score (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ts TIMESTAMPTZ NOT NULL DEFAULT now(),
+    score SMALLINT NOT NULL DEFAULT 0,
+    headline TEXT
+  )`,
+
   `CREATE TABLE IF NOT EXISTS access_requests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT UNIQUE NOT NULL,
