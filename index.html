@@ -605,7 +605,6 @@ function drawEquity(arr,maxDD){
 
 /* ================= CURRENCY CONVERTER (real-time) ================= */
 const FX_LIST=['USD','EUR','INR','GBP','JPY','AED','CAD','AUD','PKR','BDT','PHP','IDR','VND','TRY','BRL','MXN','ZAR','NGN','SAR','CNY'];
-let fxRates=null,fxTime=0;
 const FX_NAMES={USD:'US Dollar',EUR:'Euro',INR:'Indian Rupee',GBP:'British Pound',JPY:'Japanese Yen',AED:'UAE Dirham',CAD:'Canadian Dollar',AUD:'Australian Dollar',PKR:'Pakistani Rupee',BDT:'Bangladeshi Taka',PHP:'Philippine Peso',IDR:'Indonesian Rupiah',VND:'Vietnamese Dong',TRY:'Turkish Lira',BRL:'Brazilian Real',MXN:'Mexican Peso',ZAR:'South African Rand',NGN:'Nigerian Naira',SAR:'Saudi Riyal',CNY:'Chinese Yuan'};
 let fxRates=null,fxTime=0,fxEdit='from';
 function fxOpts(sel){return FX_LIST.map(c=>`<option value="${c}" ${c===sel?'selected':''}>${c} — ${FX_NAMES[c]||c}</option>`).join('');}
