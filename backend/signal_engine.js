@@ -140,6 +140,8 @@ function trend1d(kl: any[]): 1 | -1 | 0 {
 }
 
 // ---------- tiered detection ----------
+// Tier 1-3: RSI CROSS based (quality events, strict)
+// Tier 4:   RSI ZONE based (state-based — quota fill ke liye, zyada frequent)
 function detect(kl: any[], tier: number) {
   const closes = kl.map((x) => x.c);
   if (closes.length < 210) return null;
@@ -156,6 +158,20 @@ function detect(kl: any[], tier: number) {
   const stOK = tier >= 4 || (st[i] !== null && dir[i] === 1);
   const stOKS = tier >= 4 || (st[i] !== null && dir[i] === -1);
 
+  // ---- Tier 4: state-based (RSI zone, no cross needed) — frequent setups for quota ----
+  if (tier >= 4) {
+    if (eF[i] > eS[i] && eS[i] > eL[i] && closes[i] > eF[i] && rs[i] >= 55 && rs[i] <= 75) {
+      const r = SL_ATR * at[i];
+      return { dir: 1 as const, entry, sl: entry - r, tp1: entry + r, tp2: entry + 2 * r, tp3: entry + 3 * r, atr: at[i], score: kl[i].v / (volMA[i] || 1) };
+    }
+    if (eF[i] < eS[i] && eS[i] < eL[i] && closes[i] < eF[i] && rs[i] <= 45 && rs[i] >= 25) {
+      const r = SL_ATR * at[i];
+      return { dir: -1 as const, entry, sl: entry + r, tp1: entry - r, tp2: entry - 2 * r, tp3: entry - 3 * r, atr: at[i], score: kl[i].v / (volMA[i] || 1) };
+    }
+    return null;
+  }
+
+  // ---- Tier 1-3: cross-based ----
   if (eF[i] > eS[i] && eS[i] > eL[i] && stOK && (tier >= 3 || (v !== null && closes[i] > v))
     && rs[i - 1] < RSI_BUY && rs[i] >= RSI_BUY && closes[i] > eF[i] && volOK) {
     const r = SL_ATR * at[i];

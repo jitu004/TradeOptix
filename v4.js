@@ -361,6 +361,7 @@ async function loadAccessRequests() {
 }
 
 function startApp() {
+  loadDbSignals(); setInterval(loadDbSignals, 30000);
   loadWeekly(); setInterval(loadWeekly, 60000);
   loadSentimentGauge(); setInterval(loadSentimentGauge, 60000);
   loadLoginActivity(); setInterval(loadLoginActivity, 60000);
