@@ -22,6 +22,11 @@ select:focus,input:focus{border-color:var(--yellow)}
 #livePrice{font-size:22px;font-weight:700}
 #livePrice{font-size:28px;font-weight:800;letter-spacing:1.5px;text-shadow:0 0 22px rgba(240,185,11,.3)}
 #priceChg{font-size:12px;font-weight:800;letter-spacing:.5px;padding:4px 11px;border-radius:20px;border:1px solid currentColor;background:rgba(255,255,255,.07);background:color-mix(in srgb,currentColor 15%,transparent)}
+@keyframes dog-hop{0%,100%{transform:translateY(0) rotate(-7deg)}50%{transform:translateY(-9px) rotate(7deg)}}
+@keyframes dog-sit{0%,100%{transform:translateY(4px) scale(.95)}50%{transform:translateY(6px) scale(.92)}}
+#priceDog{display:inline-block;font-size:26px;margin-left:6px;transition:filter .4s;min-width:46px;text-align:center}
+#priceDog.up{animation:dog-hop .56s ease-in-out infinite}
+#priceDog.down{animation:dog-sit 2.4s ease-in-out infinite;filter:grayscale(.5)}
 .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 .alert-banner{display:none;padding:10px 20px;font-weight:700;font-size:14px;align-items:center;gap:10px}
@@ -93,7 +98,7 @@ select:focus,input:focus{border-color:var(--yellow)}
   <select id="symbolSel"><option>Loading coins…</option></select>
   <div class="price-box">
     <span id="livePrice">—</span>
-    <span id="priceChg">—</span>
+    <span id="priceDog" title="Market mood"></span><span id="priceChg">—</span>
   </div>
 </div>
 
@@ -167,14 +172,18 @@ select:focus,input:focus{border-color:var(--yellow)}
     </div>
     <div class="panel" style="margin-top:14px">
       <h3>💱 Currency Converter</h3>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-        <input type="number" id="convAmt" value="1" min="0" style="width:86px;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;font-family:var(--mono)">
-        <select id="convFrom" style="flex:1;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px"></select>
-        <span style="color:var(--muted)">→</span>
-        <select id="convTo" style="flex:1;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px"></select>
+      <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px">
+        <div style="flex:1">
+          <input type="number" id="convAmtFrom" value="1" min="0" style="width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:8px;font-family:var(--mono);font-size:16px;font-weight:700;margin-bottom:8px">
+          <select id="convFrom" style="width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:9px;border-radius:8px"></select>
+        </div>
+        <button id="convSwap" title="Swap currencies" style="margin-top:8px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:50%;width:36px;height:36px;cursor:pointer;font-size:16px;flex-shrink:0">⇄</button>
+        <div style="flex:1">
+          <input type="number" id="convAmtTo" value="0" min="0" style="width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--yellow);color:var(--yellow);padding:10px;border-radius:8px;font-family:var(--mono);font-size:16px;font-weight:700;margin-bottom:8px">
+          <select id="convTo" style="width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:9px;border-radius:8px"></select>
+        </div>
       </div>
-      <div id="convResult" style="font-size:20px;font-family:var(--mono);color:var(--yellow)">Loading rates…</div>
-      <div id="convRate" class="note" style="margin-top:6px;font-size:11px"></div>
+      <div id="convRate" class="note" style="font-size:11px;text-align:center"></div>
     </div>
   </div>
 </div>
@@ -367,6 +376,20 @@ async function fetchKlinesPaginated(){
     if(tf!=='1d'&&all.length>=1000&&tf!=='4h')break;}
   return all;}
 
+const DOG_HAPPY=['🐕','🐕<i style="font-size:13px;font-style:normal;position:relative;top:-10px">🐾</i>','🐶<i style="font-size:12px;font-style:normal">😛</i>','🐕<i style="font-size:13px;font-style:normal">💨</i>'];
+const DOG_SAD=['🐶','🐩','🐶<i style="font-size:11px;font-style:normal">💧</i>','🐶<i style="font-size:12px;font-style:normal">📈</i>'];
+let dogTimer=null,dogIdx=0;
+function dogMood(mode){
+  const dog=document.getElementById('priceDog');
+  if(!dog)return;
+  if(dogTimer){clearInterval(dogTimer);dogTimer=null;}
+  dog.className=mode;dogIdx=0;
+  dog.title=mode==='up'?'Market is up — dog is happy! 🎉':'Market is down — dog is sad, waiting for a rise… 📈';
+  const frames=mode==='up'?DOG_HAPPY:DOG_SAD;
+  const speed=mode==='up'?280:750;
+  dog.innerHTML=frames[0];
+  dogTimer=setInterval(()=>{dogIdx=(dogIdx+1)%frames.length;dog.innerHTML=frames[dogIdx];},speed);
+}
 function connectWS(){
   if(ws)ws.close();
   try{
@@ -377,6 +400,8 @@ function connectWS(){
     const el=document.getElementById('priceChg');
     el.textContent=(chg>=0?'+':'')+chg.toFixed(2)+'%';
     el.className=chg>=0?'pos':'neg';
+    const dog=document.getElementById('priceDog');
+    dogMood(chg>=0?'up':'down');
     document.getElementById('livePrice').style.color=chg>=0?'var(--green)':'var(--red)';
     if(tracking&&activeSignal)checkSLGuard(p);};
   ws.onclose=()=>{document.getElementById('wsStatus').textContent='● RECONNECTING';
@@ -581,11 +606,19 @@ function drawEquity(arr,maxDD){
 /* ================= CURRENCY CONVERTER (real-time) ================= */
 const FX_LIST=['USD','EUR','INR','GBP','JPY','AED','CAD','AUD','PKR','BDT','PHP','IDR','VND','TRY','BRL','MXN','ZAR','NGN','SAR','CNY'];
 let fxRates=null,fxTime=0;
+const FX_NAMES={USD:'US Dollar',EUR:'Euro',INR:'Indian Rupee',GBP:'British Pound',JPY:'Japanese Yen',AED:'UAE Dirham',CAD:'Canadian Dollar',AUD:'Australian Dollar',PKR:'Pakistani Rupee',BDT:'Bangladeshi Taka',PHP:'Philippine Peso',IDR:'Indonesian Rupiah',VND:'Vietnamese Dong',TRY:'Turkish Lira',BRL:'Brazilian Real',MXN:'Mexican Peso',ZAR:'South African Rand',NGN:'Nigerian Naira',SAR:'Saudi Riyal',CNY:'Chinese Yuan'};
+let fxRates=null,fxTime=0,fxEdit='from';
+function fxOpts(sel){return FX_LIST.map(c=>`<option value="${c}" ${c===sel?'selected':''}>${c} — ${FX_NAMES[c]||c}</option>`).join('');}
 function initConverter(){
   const f=document.getElementById('convFrom'),t=document.getElementById('convTo');
-  f.innerHTML=FX_LIST.map(c=>`<option ${c==='USD'?'selected':''}>${c}</option>`).join('');
-  t.innerHTML=FX_LIST.map(c=>`<option ${c==='INR'?'selected':''}>${c}</option>`).join('');
-  ['convAmt','convFrom','convTo'].forEach(id=>document.getElementById(id).addEventListener('input',doConvert));
+  if(!f||!t)return;
+  f.innerHTML=fxOpts('USD'); t.innerHTML=fxOpts('INR');
+  document.getElementById('convAmtFrom').addEventListener('input',()=>{fxEdit='from';doConvert();});
+  document.getElementById('convAmtTo').addEventListener('input',()=>{fxEdit='to';doConvert();});
+  f.addEventListener('change',()=>{fxEdit='from';doConvert();});
+  t.addEventListener('change',()=>{fxEdit='from';doConvert();});
+  document.getElementById('convSwap').addEventListener('click',()=>{
+    const fv=f.value; f.value=t.value; t.value=fv; fxEdit='from'; doConvert();});
   loadFx();}
 async function loadFx(force){
   if(!force&&fxRates&&Date.now()-fxTime<3600000){doConvert();return;}
@@ -596,18 +629,19 @@ async function loadFx(force){
   }catch(e){}
   doConvert();}
 function doConvert(){
-  const amt=+document.getElementById('convAmt').value||0;
+  const af=document.getElementById('convAmtFrom'),at=document.getElementById('convAmtTo');
   const f=document.getElementById('convFrom').value,t=document.getElementById('convTo').value;
-  const res=document.getElementById('convRate')?document.getElementById('convResult'):null;
-  if(!fxRates){document.getElementById('convResult').textContent='Loading rates…';
-    document.getElementById('convRate').textContent='';return;}
+  const rateEl=document.getElementById('convRate');
+  if(!fxRates){rateEl.textContent='Loading rates…';return;}
   const rate=fxRates[t]/fxRates[f];
-  const out=amt*rate;
-  document.getElementById('convResult').textContent=
-    `${amt.toLocaleString()} ${f} = ${out.toLocaleString('en-US',{maximumFractionDigits:2})} ${t}`;
-  const d=new Date(fxTime);
-  document.getElementById('convRate').textContent=
-    `1 ${f} = ${rate.toLocaleString('en-US',{maximumFractionDigits:4})} ${t} · Updated ${d.toLocaleTimeString()}`;}
+  if(fxEdit==='to'){
+    const amtTo=parseFloat(at.value)||0;
+    af.value=+(amtTo/rate).toFixed(2);
+  }else{
+    const amt=parseFloat(af.value)||0;
+    at.value=+(amt*rate).toFixed(2);
+  }
+  rateEl.textContent=`1 ${f} = ${rate.toLocaleString('en-US',{maximumFractionDigits:4})} ${t} · Updated ${new Date(fxTime).toLocaleTimeString()}`;}
 
 /* ================= SL GUARD ================= */
 function beep(freq=880,dur=180){try{const ctx=new (window.AudioContext||window.webkitAudioContext)();
