@@ -362,10 +362,8 @@ async function loadAccessRequests() {
 
 function startApp() {
   loadWeekly(); setInterval(loadWeekly, 60000);
-  loadEngineLogs(); setInterval(loadEngineLogs, 3000);
   loadSentimentGauge(); setInterval(loadSentimentGauge, 60000);
   loadLoginActivity(); setInterval(loadLoginActivity, 60000);
-  loadAccessRequests(); setInterval(loadAccessRequests, 30000);
 }
 
 /* --- boot: session check (gate KABHI bypass nahi hota jab key set hai) --- */
