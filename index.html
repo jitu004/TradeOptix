@@ -146,12 +146,13 @@ select:focus,input:focus{border-color:var(--yellow)}
   </div>
 
   <!-- CENTER: CHART -->
-  <div class="panel" style="overflow:hidden">
+  <div class="panel" style="overflow:hidden;position:relative">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <h3 style="margin:0">📊 Live Chart</h3>
       <span class="badge badge-strong" id="tvStatus">🟢 LIVE</span>
     </div>
     <div id="tv_chart" style="height:455px"></div>
+    <div title="" style="position:absolute;left:0;bottom:34px;width:136px;height:36px;background:#131722;z-index:10;pointer-events:none;border-radius:4px"></div>
   </div>
 
   <!-- RIGHT: BACKTEST DETAIL -->
