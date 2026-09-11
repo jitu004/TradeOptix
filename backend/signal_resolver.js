@@ -66,6 +66,17 @@ export default async function handler(_req: Request, _ctx: unknown): Promise<Res
     );
     results.push(`${result ? "TRUE" : "FALSE"} ${s.symbol} ${why} pnl=${pnl.toFixed(2)}%`);
     await log(result ? "TRUE" : "FALSE", `${s.symbol} ${s.direction === 1 ? "LONG" : "SHORT"} → ${result ? "TRUE ✅" : "FALSE ❌"} (${why}) | exit ${exitP} | PnL ${pnl.toFixed(2)}%`);
+
+    // mobile alert on result (WhatsApp via CallMeBot)
+    const WA_PHONE = Deno.env.get("WHATSAPP_PHONE");
+    const WA_KEY = Deno.env.get("WHATSAPP_APIKEY");
+    if (WA_PHONE && WA_KEY) {
+      try {
+        const icon = result ? "✅ TRUE" : "❌ FALSE";
+        const msg = `${icon} ${s.symbol} ${s.direction === 1 ? "LONG" : "SHORT"} (${why})\nExit: ${exitP}\nPnL: ${pnl.toFixed(2)}%`;
+        await fetch(`https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(WA_PHONE)}&apikey=${WA_KEY}&text=${encodeURIComponent(msg)}`);
+      } catch { /* alert fail = non-fatal */ }
+    }
   }
 
   return new Response(JSON.stringify({ checked: rows.length, results, at: new Date().toISOString() }, null, 2), {

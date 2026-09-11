@@ -117,5 +117,47 @@ git push && npx @insforge/cli deployments deploy
    - Env vars sab me: `INSFORGE_URL` + `INSFORGE_SERVICE_KEY`
 3. Verify: site pe 3 naye panels — Weekly Report, Engine Logs, Market Sentiment
 
+### v4.2 additions — db_setup + mobile alerts
+- **`db_setup` function (SQL Editor ki jagah):** SQL Editor DDL scripts reject karta hai ("security reasons").
+  Isliye `backend/db_setup.js` ko function banao `db_setup` naam se, env vars set karo
+  (`INSFORGE_URL`, `INSFORGE_SERVICE_KEY`), deploy karo, phir browser me kholo:
+  `https://r3pjdfkc.function2.insforge.app/db_setup` — saari tables/columns khud ban jayengi.
+  Ek baar chalne ke baad function delete bhi kar sakte ho.
+- **Mobile alerts (WhatsApp via CallMeBot — free):**
+  1. WhatsApp me +34 644 51 95 23 ko contact me add karo (naam kuch bhi do, jaise "CallMeBot")
+  2. Us number ko ye exact message bhejo: `I allow callmebot to send me messages`
+  3. Reply me `API Activated...` + aapka **apikey** aayega
+  4. InsForge me `signal_engine` aur `signal_resolver` dono functions me env vars add karo:
+     `WHATSAPP_PHONE` = aapka number country code ke saath (e.g. `+919876543210`)
+     `WHATSAPP_APIKEY` = CallMeBot ka apikey
+  5. Ab har naye signal + har TRUE/FALSE result pe **WhatsApp** pe message aayega.
+  (Note: free tier me 1 msg / ~5 sec limit hai — 10 signals/day ke liye enough hai.
+   Official WhatsApp Business API (Meta) zyada reliable hai par uske liye business account + setup chahiye.)
+
+### v4.4 — Signup → Admin Approval → Email (complete access flow)
+1. **v4.js me 2 cheezein paste karo:**
+   - `ANON_KEY` = Secrets se `INSFORGE_ANON_KEY` ki value
+   - `ADMIN_EMAIL` = aapka email (Secrets ke `ADMIN_EMAILS` se match hona chahiye)
+2. **Auth settings:** Dashboard → Authentication → Email provider ON → **"Allow new sign ups" ON rakho**
+   (real control humara approval gate hai — bina approve login nahi hoga)
+3. **Secrets add karo** (Dashboard → Secrets):
+   - `ADMIN_EMAILS` = aapka email (e.g. `aap@gmail.com`) — isse multiple admin comma-separated bhi ho sakte hain
+   - `BREVO_KEY` = brevo.com free account → API keys → "Generate a new API key" (approval emails ke liye, 300 free/day)
+4. **4 functions deploy + setup:**
+   ```bash
+   npx @insforge/cli functions deploy request_access --file backend/request_access.js
+   npx @insforge/cli functions deploy check_approval --file backend/check_approval.js
+   npx @insforge/cli functions deploy approve_user --file backend/approve_user.js
+   npx @insforge/cli functions deploy public_requests --file backend/public_requests.js
+   npx @insforge/cli functions deploy log_login --file backend/log_login.js
+   npx @insforge/cli functions deploy public_logins --file backend/public_logins.js
+   npx @insforge/cli functions invoke db_setup --method GET   # access_requests table
+   ```
+5. **Site deploy:** `git add . && git commit -m "v4.4 approval flow" && git push && npx @insforge/cli deployments deploy`
+
+**Flow:** User "Request Access" → signup + pending record → aapko email + "🛡️ Access Requests"
+panel me dikhta hai → **Approve** dabao → user ko email jata hai → user login karke app use karta hai.
+"🔐 Login Activity" panel me har login record hota hai.
+
 ## ⚠️ Disclaimer
 Education/analytics ke liye hai, financial advice nahi. Backtest ≠ future guarantee. Kabhi bina SL ke trade mat karo.

@@ -201,6 +201,22 @@ export default async function handler(_req: Request, _ctx: unknown): Promise<Res
     const tag = sentAligned ? "sentiment-aligned ⭐" : tier === 1 ? "full confluence" : `tier ${tier} relaxed`;
     logs.push(`OK ${sym} ${tf} T${tier} ${sig.dir === 1 ? "LONG" : "SHORT"}`);
     await log("SIGNAL", `${sym} ${tf.toUpperCase()} ${sig.dir === 1 ? "LONG" : "SHORT"} @ ${sig.entry.toFixed(4)} (${tag}, quota ${madeToday}/${QUOTA_PER_DAY})`);
+    await whatsappAlert(sym, tf, sig, tier);
+  }
+
+  // --- mobile alert (WhatsApp via CallMeBot — free) ---
+  async function whatsappAlert(sym: string, tf: string, sig: any, tier: number): Promise<void> {
+    const WA_PHONE = Deno.env.get("WHATSAPP_PHONE");     // e.g. +919876543210
+    const WA_KEY = Deno.env.get("WHATSAPP_APIKEY");      // CallMeBot apikey
+    if (!WA_PHONE || !WA_KEY) return;                    // env vars nahi hain toh silently skip
+    const d = sig.dir === 1 ? "🟢 LONG" : "🔴 SHORT";
+    const msg = `⚡ TradeOptix Signal\n${d} ${sym} (${tf.toUpperCase()}${tier > 1 ? " T" + tier : ""})\nEntry: ${sig.entry.toFixed(6)}\nSL: ${sig.sl.toFixed(6)}\nTP: ${sig.tp3.toFixed(6)}\nSentiment: ${sent.score}/100 ${sent.label}`;
+    try {
+      await fetch(`https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(WA_PHONE)}&apikey=${WA_KEY}&text=${encodeURIComponent(msg)}`);
+      await log("INFO", `WhatsApp alert sent — ${sym} ${tf}`);
+    } catch (e) {
+      await log("WARN", `WhatsApp alert failed: ${String(e)}`);
+    }
   }
 
   if (madeToday < QUOTA_PER_DAY) {

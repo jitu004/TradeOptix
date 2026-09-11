@@ -125,6 +125,185 @@ async function loadSentimentGauge() {
   } catch (e) { el.innerHTML = '<div class="note">Sentiment engine not deployed yet — backend/market_sentiment.js deploy karo (schedule: 15 min, public ON).</div>'; }
 }
 
-loadWeekly(); setInterval(loadWeekly, 60000);
-loadEngineLogs(); setInterval(loadEngineLogs, 3000);
-loadSentimentGauge(); setInterval(loadSentimentGauge, 60000);
+/* ================= AUTH GATE + LOGIN ACTIVITY =================
+   InsForge Auth (Supabase-compatible) — bina login ke site ka content nahi dikhta.
+   ANON_KEY: Dashboard -> Secrets -> INSFORGE_ANON_KEY ki value yahan paste karo.
+   (Anon key browser me safe hoti hai — ye public key hi hoti hai.) */
+const ANON_KEY = 'anon_d4e349cf0f19d19a9a53315e4b667de23297b526c873fe3c4702b22792724c8c';
+const sb = (window.supabase && !ANON_KEY.includes('PASTE_'))
+  ? window.supabase.createClient('https://r3pjdfkc.eu-central.insforge.app', ANON_KEY)
+  : null;
+let authToken = null;
+const ADMIN_EMAIL = 'j.nagarkoti@outlook.com';   // Secrets ke ADMIN_EMAILS se match hona chahiye (aapka email)
+
+async function checkApproval(email) {
+  try {
+    const r = await fetch(SV_BASE + '/check_approval', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    return (await r.json()).approved === true;
+  } catch (e) { return false; }
+}
+
+async function submitAccessRequest(email, uid) {
+  try {
+    await fetch(SV_BASE + '/request_access', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, uid }),
+    });
+  } catch (e) { /* non-fatal */ }
+}
+
+function lockApp() {
+  document.documentElement.style.overflow = 'hidden';
+  for (const el of document.body.children) {
+    if (el.id !== 'authGate') el.style.visibility = 'hidden';
+  }
+}
+
+function unlockApp() {
+  document.documentElement.style.overflow = '';
+  for (const el of document.body.children) el.style.visibility = '';
+}
+
+function showLogin(msg, mode) {
+  lockApp();
+  document.getElementById('authGate')?.remove();
+  const isReq = mode === 'request';
+  document.body.insertAdjacentHTML('beforeend', `
+  <div id="authGate" style="position:fixed;inset:0;z-index:9999;background:#0b0e11;display:flex;align-items:center;justify-content:center;font-family:inherit">
+    <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;padding:32px 36px;width:360px;color:#e6edf3">
+      <div style="font-size:22px;font-weight:800;margin-bottom:4px">⚡ TRADE<span style="color:#f0b90b">OPTIX</span></div>
+      <div style="font-size:12px;color:#8b949e;margin-bottom:16px">${isReq ? 'Request access — admin approval ke baad login milega' : 'Private access — sign in to continue'}</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button id="tabIn" style="flex:1;padding:7px;border-radius:7px;border:1px solid #30363d;background:${isReq ? '#0d1117' : '#f0b90b'};color:${isReq ? '#e6edf3' : '#000'};font-weight:700;font-size:12px;cursor:pointer">Sign In</button>
+        <button id="tabReq" style="flex:1;padding:7px;border-radius:7px;border:1px solid #30363d;background:${isReq ? '#f0b90b' : '#0d1117'};color:${isReq ? '#000' : '#e6edf3'};font-weight:700;font-size:12px;cursor:pointer">Request Access</button>
+      </div>
+      <input id="lgEmail" type="email" placeholder="Email" style="width:100%;box-sizing:border-box;background:#0d1117;border:1px solid #30363d;color:#e6edf3;padding:10px 12px;border-radius:8px;margin-bottom:10px;font-size:14px">
+      <input id="lgPass" type="password" placeholder="Password (min 6 chars)" style="width:100%;box-sizing:border-box;background:#0d1117;border:1px solid #30363d;color:#e6edf3;padding:10px 12px;border-radius:8px;margin-bottom:14px;font-size:14px">
+      <button id="lgBtn" style="width:100%;background:#f0b90b;border:none;color:#000;font-weight:800;padding:11px;border-radius:8px;font-size:14px;cursor:pointer">${isReq ? 'Submit Request' : 'Sign In'}</button>
+      <div id="lgMsg" style="font-size:12px;color:#f85149;margin-top:10px;min-height:16px">${msg || ''}</div>
+      <div style="font-size:11px;color:#8b949e;margin-top:14px;border-top:1px solid #30363d;padding-top:10px">${isReq ? 'Request submit hone ke baad admin approve karega — approval email aayega.' : 'Access sirf admin-approved accounts ka hai. Naya account? "Request Access" tab dabao.'}</div>
+    </div>
+  </div>`);
+  document.getElementById('tabIn').onclick = () => showLogin('', 'signin');
+  document.getElementById('tabReq').onclick = () => showLogin('', 'request');
+  const go = async () => {
+    const b = document.getElementById('lgBtn'), m = document.getElementById('lgMsg');
+    const em = document.getElementById('lgEmail').value.trim();
+    const pw = document.getElementById('lgPass').value;
+    b.textContent = isReq ? 'Submitting…' : 'Signing in…'; b.disabled = true; m.textContent = '';
+    if (isReq) {
+      const { data, error } = await sb.auth.signUp({ email: em, password: pw });
+      if (error) { m.textContent = error.message; b.textContent = 'Submit Request'; b.disabled = false; return; }
+      await submitAccessRequest(em, data.user?.id || '');
+      await sb.auth.signOut();
+      showLogin('✅ Request submitted! Jab admin approve karega tab email aayega. Tab tak login blocked hai.', 'signin');
+      return;
+    }
+    const { data, error } = await sb.auth.signInWithPassword({ email: em, password: pw });
+    if (error) { m.textContent = error.message; b.textContent = 'Sign In'; b.disabled = false; return; }
+    const ok = await checkApproval(em.toLowerCase());
+    if (!ok) {
+      await sb.auth.signOut();
+      showLogin('⏳ Aapki access request abhi PENDING hai. Admin approve karega tab email aayega.', 'signin');
+      return;
+    }
+    await onLogin(data.session);
+  };
+  document.getElementById('lgBtn').onclick = go;
+  document.getElementById('lgPass').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+}
+
+async function recordLogin(email, uid) {
+  try {
+    await fetch(SV_BASE + '/log_login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, uid }),
+    });
+  } catch (e) { /* login record fail = non-fatal */ }
+}
+
+async function onLogin(session) {
+  authToken = session.access_token;
+  await recordLogin(session.user.email, session.user.id);
+  document.getElementById('authGate')?.remove();
+  unlockApp();
+  addLogoutBtn(session.user.email);
+  startApp();
+}
+
+function addLogoutBtn(email) {
+  const h = document.querySelector('header .hdr-right, header div:last-child, header');
+  if (!h || document.getElementById('lgOut')) return;
+  h.insertAdjacentHTML('beforeend',
+    `<span id="lgUser" style="font-size:11px;color:#8b949e;margin-left:8px">${email}</span>
+     <button id="lgOut" style="background:#21262d;border:1px solid #30363d;color:#e6edf3;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:6px">Logout</button>`);
+  document.getElementById('lgOut').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+}
+
+/* --- Login Activity panel (sirf logged-in users ko dikhta hai) --- */
+async function loadLoginActivity() {
+  const el = document.getElementById('loginList');
+  if (!el || !authToken) return;
+  try {
+    const r = await fetch(SV_BASE + '/public_logins', { headers: { Authorization: `Bearer ${authToken}` } });
+    if (!r.ok) throw new Error('unauthorized');
+    const d = await r.json();
+    el.innerHTML = (d.logins || []).map(l =>
+      `<div style="padding:4px 0;border-bottom:1px dashed var(--border)">
+        <b>${l.email}</b><br>
+        <span style="color:var(--muted);font-size:11px">${new Date(l.ts).toLocaleString('en-GB')} · ${String(l.ua || '').slice(0, 60)}</span>
+      </div>`).join('') || '<div style="color:var(--muted);text-align:center;padding:12px">No logins recorded yet</div>';
+  } catch (e) { el.innerHTML = '<div class="note">Login history sirf logged-in users ko milti hai.</div>'; }
+}
+
+/* --- Access Requests panel (sirf admin ko dikhta hai) --- */
+async function loadAccessRequests() {
+  const el = document.getElementById('reqList');
+  if (!el || !authToken) return;
+  const me = (sb && (await sb.auth.getUser())?.data?.user?.email || '').toLowerCase();
+  if (me !== ADMIN_EMAIL.toLowerCase()) { el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:12px">Admin only</div>'; return; }
+  try {
+    const r = await fetch(SV_BASE + '/public_requests', { headers: { Authorization: `Bearer ${authToken}` } });
+    if (!r.ok) throw new Error('unauthorized');
+    const d = await r.json();
+    const pend = (d.requests || []).filter(x => x.status === 'pending');
+    el.innerHTML = `<div style="font-size:11px;color:var(--muted);margin-bottom:6px">${pend.length} pending</div>` +
+      (d.requests || []).map(q => `<div style="padding:5px 0;border-bottom:1px dashed var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span style="overflow:hidden;text-overflow:ellipsis"><b>${q.email}</b><br><span style="font-size:10px;color:var(--muted)">${new Date(q.requested_at).toLocaleString('en-GB')} · ${q.status}</span></span>
+        ${q.status === 'pending' ? `<button data-em="${q.email}" class="apBtn" style="background:#238636;border:none;color:#fff;padding:5px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">Approve</button>` : ''}
+      </div>`).join('') || '<div style="color:var(--muted);text-align:center;padding:12px">No requests yet</div>';
+    el.querySelectorAll('.apBtn').forEach(btn => {
+      btn.onclick = async () => {
+        btn.textContent = '…'; btn.disabled = true;
+        await fetch(SV_BASE + '/approve_user', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+          body: JSON.stringify({ email: btn.dataset.em }),
+        });
+        loadAccessRequests();
+      };
+    });
+  } catch (e) { el.innerHTML = '<div class="note">Requests load nahi hui.</div>'; }
+}
+
+function startApp() {
+  loadWeekly(); setInterval(loadWeekly, 60000);
+  loadEngineLogs(); setInterval(loadEngineLogs, 3000);
+  loadSentimentGauge(); setInterval(loadSentimentGauge, 60000);
+  loadLoginActivity(); setInterval(loadLoginActivity, 60000);
+  loadAccessRequests(); setInterval(loadAccessRequests, 30000);
+}
+
+/* --- boot: session check --- */
+(async () => {
+  if (!sb) { startApp(); return; }                    // ANON_KEY nahi dali — gate skip (dev mode)
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    const ok = await checkApproval(String(session.user.email).toLowerCase());
+    if (ok) { await onLogin(session); }
+    else { await sb.auth.signOut(); showLogin('⏳ Access pending admin approval.', 'signin'); }
+  }
+  else showLogin();
+})();
