@@ -13,12 +13,12 @@
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
-.header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.header{position:relative;display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
 .logo{font-size:20px;font-weight:800;color:var(--yellow);letter-spacing:1px}
 .logo span{color:var(--text)}
 select,input{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;outline:none}
 select:focus,input:focus{border-color:var(--yellow)}
-.price-box{margin-left:auto;display:flex;align-items:baseline;gap:12px;font-family:var(--mono)}
+.price-box{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:baseline;gap:12px;font-family:var(--mono)}
 #livePrice{font-size:22px;font-weight:700}
 #priceChg{font-size:13px}
 .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.2s infinite}
