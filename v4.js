@@ -198,54 +198,86 @@ function clearAuth() {
   try { localStorage.removeItem('tfx_auth'); } catch (e) {}
 }
 
+const TFX_CSS = `<style>@keyframes tfx-run{0%{transform:translateX(-26px)}100%{transform:translateX(26px)}}@keyframes tfx-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}.tfx-run{display:inline-block;animation:tfx-run 1.1s ease-in-out infinite alternate}.tfx-bob{display:inline-block;animation:tfx-bob 1s ease-in-out infinite}</style>`;
+
+function tfxMascot(size) {
+  return TFX_CSS + `<div style="text-align:center;margin-bottom:12px;white-space:nowrap">
+    <span class="tfx-run" style="font-size:${size}px">🏃‍♂️💨</span>
+    <span class="tfx-bob" style="font-size:${Math.round(size * 0.62)}px">🤔</span>
+    <span class="tfx-bob" style="font-size:${Math.round(size * 0.5)}px;animation-delay:.4s">❓</span>
+    <span class="tfx-bob" style="font-size:${Math.round(size * 0.5)}px;animation-delay:.7s">❓</span>
+  </div>`;
+}
+
 function showLogin(msg, mode) {
   const isReq = mode === 'request';
+  const isForgot = mode === 'forgot';
   lockScreen(`
     <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;padding:32px 36px;width:360px;color:#e6edf3">
-      <div style="font-size:22px;font-weight:800;margin-bottom:4px">⚡ TRADE<span style="color:#f0b90b">OPTIX</span></div>
-      <div style="font-size:12px;color:#8b949e;margin-bottom:16px">${isReq ? 'Request access — you can sign in once an administrator approves your account' : 'Private access — please sign in to continue'}</div>
-      <div style="display:flex;gap:8px;margin-bottom:16px">
+      ${isForgot ? tfxMascot(44) : `<div style="font-size:22px;font-weight:800;margin-bottom:4px">⚡ TRADE<span style="color:#f0b90b">OPTIX</span></div>`}
+      <div style="font-size:12px;color:#8b949e;margin-bottom:16px">${isForgot ? 'Forgot your password? Even our runner forgets sometimes — we\'ll email you a reset link.' : isReq ? 'Request access — you can sign in once an administrator approves your account' : 'Private access — please sign in to continue'}</div>
+      ${isForgot ? '' : `<div style="display:flex;gap:8px;margin-bottom:16px">
         <button id="tabIn" style="flex:1;padding:7px;border-radius:7px;border:1px solid #30363d;background:${isReq ? '#0d1117' : '#f0b90b'};color:${isReq ? '#e6edf3' : '#000'};font-weight:700;font-size:12px;cursor:pointer">Sign In</button>
         <button id="tabReq" style="flex:1;padding:7px;border-radius:7px;border:1px solid #30363d;background:${isReq ? '#f0b90b' : '#0d1117'};color:${isReq ? '#000' : '#e6edf3'};font-weight:700;font-size:12px;cursor:pointer">Request Access</button>
-      </div>
+      </div>`}
       <input id="lgEmail" type="email" placeholder="Email" style="width:100%;box-sizing:border-box;background:#0d1117;border:1px solid #30363d;color:#e6edf3;padding:10px 12px;border-radius:8px;margin-bottom:10px;font-size:14px">
-      <input id="lgPass" type="password" placeholder="Password (min 6 chars)" style="width:100%;box-sizing:border-box;background:#0d1117;border:1px solid #30363d;color:#e6edf3;padding:10px 12px;border-radius:8px;margin-bottom:14px;font-size:14px">
-      <button id="lgBtn" style="width:100%;background:#f0b90b;border:none;color:#000;font-weight:800;padding:11px;border-radius:8px;font-size:14px;cursor:pointer">${isReq ? 'Submit Request' : 'Sign In'}</button>
+      ${isForgot ? '' : `<input id="lgPass" type="password" placeholder="Password (min 6 chars)" style="width:100%;box-sizing:border-box;background:#0d1117;border:1px solid #30363d;color:#e6edf3;padding:10px 12px;border-radius:8px;margin-bottom:14px;font-size:14px">`}
+      <button id="lgBtn" style="width:100%;background:#f0b90b;border:none;color:#000;font-weight:800;padding:11px;border-radius:8px;font-size:14px;cursor:pointer">${isForgot ? 'Send Reset Link' : isReq ? 'Submit Request' : 'Sign In'}</button>
+      ${(!isForgot && !isReq) ? `<div style="text-align:right;margin-top:8px"><a href="#" id="lnkForgot" style="font-size:11px;color:#58a6ff;text-decoration:none">Forgot password?</a></div>` : ''}
       <div id="lgMsg" style="font-size:12px;color:${(msg || '').includes('✅') ? '#3fb950' : '#f85149'};margin-top:10px;min-height:16px">${msg || ''}</div>
-      <div style="font-size:11px;color:#8b949e;margin-top:14px;border-top:1px solid #30363d;padding-top:10px">${isReq ? 'Your request will be reviewed by an administrator and you will be notified by email. If you receive a confirmation email, please verify it to activate your account.' : 'Access is restricted to approved accounts. Need an account? Select the "Request Access" tab above.'}</div>
+      <div style="font-size:11px;color:#8b949e;margin-top:14px;border-top:1px solid #30363d;padding-top:10px">${isForgot ? 'Reset link email me aayega (spam folder bhi check karo). Link pe click karke naya password set karo.' : isReq ? 'Your request will be reviewed by an administrator and you will be notified by email. If you receive a confirmation email, please verify it to activate your account.' : 'Access is restricted to approved accounts. Need an account? Select the "Request Access" tab above.'}</div>
     </div>`);
-  document.getElementById('tabIn').onclick = () => showLogin('', 'signin');
-  document.getElementById('tabReq').onclick = () => showLogin('', 'request');
+  if (!isForgot) {
+    document.getElementById('tabIn').onclick = () => showLogin('', 'signin');
+    document.getElementById('tabReq').onclick = () => showLogin('', 'request');
+  } else {
+    document.getElementById('lnkForgot')?.remove?.();
+  }
+  const lnkF = document.getElementById('lnkForgot');
+  if (lnkF) lnkF.onclick = (e) => { e.preventDefault(); showLogin('', 'forgot'); };
   const go = async () => {
     const b = document.getElementById('lgBtn'), m = document.getElementById('lgMsg');
     const em = document.getElementById('lgEmail').value.trim();
-    const pw = document.getElementById('lgPass').value;
-    b.textContent = isReq ? 'Submitting…' : 'Signing in…'; b.disabled = true; m.textContent = ''; m.style.color = '#f85149';
+    const pwEl = document.getElementById('lgPass');
+    const pw = pwEl ? pwEl.value : '';
+    b.textContent = isForgot ? 'Sending…' : isReq ? 'Submitting…' : 'Signing in…'; b.disabled = true; m.textContent = ''; m.style.color = '#f85149';
     try {
+      if (isForgot) {
+        const res = await apiPost('/api/auth/email/send-reset-password', { email: em });
+        if (res.ok) { m.style.color = '#3fb950'; m.textContent = '✅ Reset link sent! Check your email (and spam folder).'; }
+        else { m.textContent = res.data.message || res.data.error || ('Failed (HTTP ' + res.status + ')'); }
+        b.textContent = 'Send Reset Link'; b.disabled = false;
+        return;
+      }
       if (isReq) {
         const res = await apiPost('/api/auth/users', { email: em, password: pw });
         const usr = pickUser(res.data);
         if (!res.ok && !usr) { m.textContent = res.data.message || res.data.error || ('Signup failed (HTTP ' + res.status + ')'); b.textContent = 'Submit Request'; b.disabled = false; return; }
         await submitAccessRequest(em, (usr && (usr.id || usr.uid)) || '');
+        apiPost('/api/auth/email/send-verification', { email: em }).catch(() => {});
         showLogin('✅ Request submitted! You will receive an email once an administrator approves your account. Please verify your email if you receive a confirmation link.', 'signin');
         return;
       }
       const res = await apiPost('/api/auth/sessions', { email: em, password: pw });
       const token = pickToken(res.data), usr = pickUser(res.data);
       if (!res.ok || !token) { m.textContent = res.data.message || res.data.error || ('Login failed (HTTP ' + res.status + ')'); b.textContent = 'Sign In'; b.disabled = false; return; }
+      if (usr && (usr.emailVerified === false || usr.email_verified === false)) {
+        apiPost('/api/auth/email/send-verification', { email: em }).catch(() => {});
+        showLogin('📧 Please verify your email first — confirmation link aapke inbox me bheja gaya hai (spam bhi check karo). Verify karke dobara login karo.', 'signin');
+        return;
+      }
       const ok = await checkApproval(em.toLowerCase());
       if (!ok) { showLogin('⏳ Your access request is pending approval. You will be notified by email once your account has been approved.', 'signin'); return; }
       saveAuth(usr || { email: em }, token);
       await onLogin(usr || { email: em });
     } catch (e) {
       m.textContent = 'Error: ' + (e.message || e);
-      b.textContent = isReq ? 'Submit Request' : 'Sign In'; b.disabled = false;
+      b.textContent = isForgot ? 'Send Reset Link' : isReq ? 'Submit Request' : 'Sign In'; b.disabled = false;
     }
   };
   document.getElementById('lgBtn').onclick = go;
-  document.getElementById('lgPass').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+  if (pwEl) pwEl.onkeydown = (e) => { if (e.key === 'Enter') go(); };
 }
-
 async function recordLogin(email, uid) {
   try {
     await fetch(SV_BASE + '/log_login', {
