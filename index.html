@@ -27,7 +27,7 @@ select:focus,input:focus{border-color:var(--yellow)}
 .alert-banner{display:none;padding:10px 20px;font-weight:700;font-size:14px;align-items:center;gap:10px}
 .alert-banner.warn{background:#3d2b00;color:var(--yellow);border-bottom:1px solid #6b4d00}
 .alert-banner.danger{background:#3d1114;color:#ff6b74;border-bottom:1px solid #6b1f24}
-.main{display:grid;grid-template-columns:340px 1fr;gap:14px;padding:14px 20px;max-width:1750px;margin:0 auto}
+.main{display:grid;grid-template-columns:340px 1fr 320px;gap:14px;padding:14px 20px;max-width:1750px;margin:0 auto}
 @media(max-width:1200px){.main{grid-template-columns:1fr}}
 .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px}
 .panel h3{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:12px}
@@ -138,6 +138,15 @@ select:focus,input:focus{border-color:var(--yellow)}
       </div>
     </div>
 
+  </div>
+
+  <!-- CENTER: CHART -->
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h3 style="margin:0">📊 Live Chart</h3>
+      <span class="note" id="tvStatus">Loading…</span>
+    </div>
+    <div id="tv_chart" style="height:520px"></div>
   </div>
 
   <!-- RIGHT: BACKTEST DETAIL -->
