@@ -24,9 +24,9 @@ select:focus,input:focus{border-color:var(--yellow)}
 #priceChg{font-size:12px;font-weight:800;letter-spacing:.5px;padding:4px 11px;border-radius:20px;border:1px solid currentColor;background:rgba(255,255,255,.07);background:color-mix(in srgb,currentColor 15%,transparent)}
 @keyframes dog-hop{0%,100%{transform:translateY(0) rotate(-7deg)}50%{transform:translateY(-9px) rotate(7deg)}}
 @keyframes dog-sit{0%,100%{transform:translateY(4px) scale(.95)}50%{transform:translateY(6px) scale(.92)}}
-#priceDog{display:inline-block;font-size:26px;margin-left:6px;transition:filter .4s;min-width:46px;text-align:center}
-#priceDog.up{animation:dog-hop .56s ease-in-out infinite}
-#priceDog.down{animation:dog-sit 2.4s ease-in-out infinite;filter:grayscale(.5)}
+#priceDogImg{display:inline-block;transition:filter .4s,transform .4s}
+#priceDogImg.up{animation:dog-hop .56s ease-in-out infinite}
+#priceDogImg.down{animation:dog-sit 2.4s ease-in-out infinite;filter:grayscale(.65);transform:translateY(3px) scale(.94)}
 .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 .alert-banner{display:none;padding:10px 20px;font-weight:700;font-size:14px;align-items:center;gap:10px}
@@ -98,7 +98,7 @@ select:focus,input:focus{border-color:var(--yellow)}
   <select id="symbolSel"><option>Loading coins…</option></select>
   <div class="price-box">
     <span id="livePrice">—</span>
-    <span id="priceDog" title="Market mood"></span><span id="priceChg">—</span>
+    <img id="priceDogImg" src="dog-happy.png" alt="Mood dog" title="Market mood" style="height:38px;margin-left:8px;border-radius:10px;vertical-align:middle"><span id="priceChg">—</span>
   </div>
 </div>
 
@@ -376,19 +376,12 @@ async function fetchKlinesPaginated(){
     if(tf!=='1d'&&all.length>=1000&&tf!=='4h')break;}
   return all;}
 
-const DOG_HAPPY=['🐕','🐕<i style="font-size:13px;font-style:normal;position:relative;top:-10px">🐾</i>','🐶<i style="font-size:12px;font-style:normal">😛</i>','🐕<i style="font-size:13px;font-style:normal">💨</i>'];
-const DOG_SAD=['🐶','🐩','🐶<i style="font-size:11px;font-style:normal">💧</i>','🐶<i style="font-size:12px;font-style:normal">📈</i>'];
-let dogTimer=null,dogIdx=0;
 function dogMood(mode){
-  const dog=document.getElementById('priceDog');
+  const dog=document.getElementById('priceDogImg');
   if(!dog)return;
-  if(dogTimer){clearInterval(dogTimer);dogTimer=null;}
-  dog.className=mode;dogIdx=0;
+  dog.src=mode==='up'?'dog-happy.png':'dog-sad.png';
+  dog.className=mode;
   dog.title=mode==='up'?'Market is up — dog is happy! 🎉':'Market is down — dog is sad, waiting for a rise… 📈';
-  const frames=mode==='up'?DOG_HAPPY:DOG_SAD;
-  const speed=mode==='up'?280:750;
-  dog.innerHTML=frames[0];
-  dogTimer=setInterval(()=>{dogIdx=(dogIdx+1)%frames.length;dog.innerHTML=frames[dogIdx];},speed);
 }
 function connectWS(){
   if(ws)ws.close();
