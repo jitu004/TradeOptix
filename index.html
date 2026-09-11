@@ -179,6 +179,7 @@ select:focus,input:focus{border-color:var(--yellow)}
       </div>
       <div id="convRate" class="note" style="font-size:11px;text-align:center"></div>
     </div>
+    <div class="panel" style="margin-top:14px"><h3>🌡️ Market Sentiment</h3><div id="sentPanel">Loading…</div></div>
   </div>
 </div>
 
@@ -186,13 +187,7 @@ select:focus,input:focus{border-color:var(--yellow)}
   <div class="panel"><h3>🚀 Top Gaining (24h)</h3><div id="gainersList" style="font-size:12px;color:var(--muted)">Loading…</div></div>
   <div class="panel"><h3>📉 Top Losing (24h)</h3><div id="losersList" style="font-size:12px;color:var(--muted)">Loading…</div></div>
   <div class="panel"><h3>🆕 New Listing</h3><div id="newList" style="font-size:12px;color:var(--muted)">Loading…</div></div>
-  <div class="panel"><h3>📡 Live Signals</h3><div id="dbStatus" class="note" style="margin-bottom:8px">Connecting…</div><div class="trade-log" id="dbSignals" style="max-height:230px"></div>
-      <div style="margin-top:8px;font-size:10px;color:var(--muted);line-height:1.7;border-top:1px dashed var(--border);padding-top:6px">
-        <b style="color:var(--text)">Tiers (quality):</b> <b>T1</b> = full confluence (best) · <b>T2</b> = volume relaxed · <b>T3</b> = VWAP relaxed · <b>T4</b> = zone-based (most frequent)<br>
-        <b style="color:var(--text)">Status:</b> ACTIVE = running · TRUE ✅ = TP hit (profit) · FALSE ❌ = SL hit (loss)
-      </div></div>
   <div class="panel"><h3>📊 Weekly Report — TRUE/FALSE</h3><div id="weeklyStats" style="margin-bottom:8px">Loading…</div><div class="trade-log" id="weeklyList" style="max-height:230px"></div></div>
-  <div class="panel"><h3>🌡️ Market Sentiment</h3><div id="sentPanel">Loading…</div></div>
 </div>
 <style>@media(max-width:1200px){.main ~ div[style*="repeat(4"]{grid-template-columns:repeat(2,1fr)!important}}@media(max-width:700px){.main ~ div[style*="repeat(4"]{grid-template-columns:1fr!important}}</style>
 

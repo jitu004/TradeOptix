@@ -397,6 +397,11 @@ async function loadLiveSignal() {
     const rows = await (await fetch(SV_BASE + '/public_signals')).json();
     if (!Array.isArray(rows) || !rows.length) { box.innerHTML = '<div style="color:var(--muted);text-align:center;padding:18px 0">No signals yet — engine scanning…</div>'; if (symEl) symEl.textContent = ''; return; }
     const s = rows.find(x => x.status === 'ACTIVE') || rows[0];
+    if (s && s.id !== lastSigId) {
+      const isNew = lastSigId !== null && (Date.now() - new Date(s.signal_time).getTime() < 10 * 60000);
+      lastSigId = s.id;
+      if (isNew && typeof sigToast === 'function') sigToast(s);
+    }
     const dir = s.direction === 1 ? 'LONG' : 'SHORT';
     const c = dir === 'LONG' ? 'var(--green)' : 'var(--red)';
     const e = +s.entry_price, sl = +s.stop_loss, tp3 = +s.take_profit;
@@ -423,7 +428,6 @@ async function loadLiveSignal() {
 
 function startApp() {
   loadLiveSignal(); setInterval(loadLiveSignal, 30000);
-  loadDbSignals(); setInterval(loadDbSignals, 30000);
   loadWeekly(); setInterval(loadWeekly, 60000);
   loadSentimentGauge(); setInterval(loadSentimentGauge, 60000);
   loadLoginActivity(); setInterval(loadLoginActivity, 60000);
