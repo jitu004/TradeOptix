@@ -36,7 +36,8 @@ async function runBT() {
   finally { if (btn) { btn.textContent = '⚡ Run Backtest (Server — InsForge)'; btn.disabled = false; } }
 }
 
-/* --- Signals History: TRUE ✅ / FALSE ❌ badges ke saath --- */
+/* --- Live Signals: entry/SL/TP + pop-up toast on new signal --- */
+let lastSigId = null;
 async function loadDbSignals() {
   const st = document.getElementById('dbStatus'), list = document.getElementById('dbSignals');
   if (!st || !list) return;
@@ -50,14 +51,41 @@ async function loadDbSignals() {
       : s.result === true ? '<span class="badge" style="background:#12361f;color:#3fb950">TRUE ✅</span>'
       : s.result === false ? '<span class="badge" style="background:#3d1d1d;color:#f85149">FALSE ❌</span>'
       : '<span class="badge badge-mid">' + s.status + '</span>';
+    const fmt6 = v => { const n = +v; return isFinite(n) ? (n >= 1 ? n.toLocaleString('en-US') : n.toPrecision(4)) : v; };
     list.innerHTML = rows.map(s => {
       const d = new Date(s.signal_time || Date.now());
       return `<div class="trade-row"><span style="color:${s.direction === 1 ? 'var(--green)' : 'var(--red)'}">${s.direction === 1 ? 'LONG' : 'SHORT'}</span>
-      <span>${String(s.symbol).replace('USDT', '')}</span><span>@ ${fmt(+s.entry_price)}</span>
+      <span>${String(s.symbol).replace('USDT', '')}</span><span>@ ${fmt6(s.entry_price)}</span>
+      <span style="color:var(--red);font-size:10px">SL ${fmt6(s.stop_loss)}</span>
+      <span style="color:var(--green);font-size:10px">TP ${fmt6(s.take_profit)}</span>
       <span style="color:var(--muted)">${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
       <span class="badge ${s.timeframe === '4h' ? 'badge-mid' : 'badge-strong'}">${(s.timeframe || '').toUpperCase()}${s.tier > 1 ? ' T' + s.tier : ''}</span>${badge(s)}</div>`;
     }).join('');
+    const top = rows[0];
+    if (top && top.id !== lastSigId) {
+      const isNew = lastSigId !== null && (Date.now() - new Date(top.signal_time).getTime() < 10 * 60000);
+      const first = lastSigId === null;
+      lastSigId = top.id;
+      if (isNew && !first) sigToast(top);
+    }
   } catch (e) { st.textContent = 'Feed unreachable — please deploy the v4 functions (see README).'; }
+}
+
+function sigToast(s) {
+  document.getElementById('sigToast')?.remove();
+  const fmt6 = v => { const n = +v; return isFinite(n) ? (n >= 1 ? n.toLocaleString('en-US') : n.toPrecision(4)) : v; };
+  const el = document.createElement('div');
+  el.id = 'sigToast';
+  el.style.cssText = 'position:fixed;top:52px;right:12px;z-index:10000;background:#161b22;border:1px solid #f0b90b;border-radius:12px;padding:14px 16px;width:300px;color:#e6edf3;box-shadow:0 10px 34px rgba(0,0,0,.55)';
+  el.innerHTML = `<style>@keyframes sigIn{from{transform:translateX(360px);opacity:0}to{transform:translateX(0);opacity:1}}</style>
+    <div style="animation:sigIn .45s ease">
+    <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:11px;color:#f0b90b;font-weight:800;letter-spacing:1px">⚡ NEW SIGNAL</div><span id="sigToastX" style="cursor:pointer;color:#8b949e;font-size:14px">✕</span></div>
+    <div style="font-size:16px;font-weight:800;margin:6px 0;color:${s.direction === 1 ? 'var(--green)' : 'var(--red)'}">${s.direction === 1 ? '🟢 LONG' : '🔴 SHORT'} ${String(s.symbol).replace('USDT', '')} <span style="font-size:10px;color:var(--muted)">${(s.timeframe || '').toUpperCase()}${s.tier > 1 ? ' T' + s.tier : ''}</span></div>
+    <div style="font-size:12px;color:#c9d1d9;line-height:1.8">Entry: <b>${fmt6(s.entry_price)}</b><br>SL: <b style="color:var(--red)">${fmt6(s.stop_loss)}</b> &nbsp; TP: <b style="color:var(--green)">${fmt6(s.take_profit)}</b></div>
+    </div>`;
+  document.body.appendChild(el);
+  document.getElementById('sigToastX').onclick = () => el.remove();
+  setTimeout(() => { el.style.transition = 'opacity .5s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 500); }, 9000);
 }
 
 /* --- Weekly report: week me kitne signals, kitne % true, kaunse-kaunse --- */
