@@ -154,20 +154,12 @@ select:focus,input:focus{border-color:var(--yellow)}
     <div id="tv_chart" style="height:438px"></div>
   </div>
 
-  <!-- RIGHT: BACKTEST DETAIL -->
+  <!-- RIGHT: LIVE SIGNAL -->
   <div>
     <div class="panel">
-      <h3>Live Backtest Result <span id="btCoinLbl" style="color:var(--yellow)"></span></h3>
-      <button class="btn btn-green" id="btnBacktest" style="width:100%;margin:0 0 10px">⚡ Run Backtest (Server — InsForge)</button>
-      <div class="stat-grid">
-        <div class="stat"><div class="v" id="btWin">—</div><div class="k">Win Rate</div></div>
-        <div class="stat"><div class="v" id="btPf">—</div><div class="k">Profit Factor</div></div>
-        <div class="stat"><div class="v" id="btRet">—</div><div class="k">Return</div></div>
-        <div class="stat"><div class="v" id="btDd">—</div><div class="k">Max DD</div></div>
-        <div class="stat"><div class="v" id="btN">—</div><div class="k">Trades</div></div>
-        <div class="stat"><div class="v" id="btAvgW">—</div><div class="k">Avg Win</div></div>
-        <div class="stat"><div class="v" id="btAvgL">—</div><div class="k">Avg Loss</div></div>
-        <div class="stat"><div class="v" id="btHold">—</div><div class="k">Avg Hold</div></div>
+      <h3>⚡ Live Signal <span id="liveSigSym" style="color:var(--yellow)"></span></h3>
+      <div id="liveSigBox" style="font-family:var(--mono);font-size:13px;line-height:2;color:var(--text)">
+        <div style="color:var(--muted);text-align:center;padding:18px 0">No active signal — waiting for setup…</div>
       </div>
     </div>
     <div class="panel" style="margin-top:14px">
@@ -718,7 +710,7 @@ async function runBT(){
   }catch(e){alert('Backtest error: '+e.message);}
   finally{tf=origTf;klines=origKlines;ind=origInd;
     if(btn)btn.textContent='⚡ Run Backtest (Live Data)';}}
-document.getElementById('btnBacktest').addEventListener('click',()=>runBT());
+document.getElementById('btnBacktest')?.addEventListener('click',()=>runBT());
 document.getElementById('btnTrack').addEventListener('click',e=>{
   if(!activeSignal){alert('No active signal — wait for a valid setup.');return;}
   tracking=!tracking;

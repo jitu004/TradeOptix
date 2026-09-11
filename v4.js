@@ -388,7 +388,41 @@ async function loadAccessRequests() {
   } catch (e) { el.innerHTML = '<div class="note">Unable to load access requests.</div>'; }
 }
 
+/* --- Right panel: latest signal in futures format --- */
+async function loadLiveSignal() {
+  const box = document.getElementById('liveSigBox');
+  const symEl = document.getElementById('liveSigSym');
+  if (!box) return;
+  try {
+    const rows = await (await fetch(SV_BASE + '/public_signals')).json();
+    if (!Array.isArray(rows) || !rows.length) { box.innerHTML = '<div style="color:var(--muted);text-align:center;padding:18px 0">No signals yet — engine scanning…</div>'; if (symEl) symEl.textContent = ''; return; }
+    const s = rows.find(x => x.status === 'ACTIVE') || rows[0];
+    const dir = s.direction === 1 ? 'LONG' : 'SHORT';
+    const c = dir === 'LONG' ? 'var(--green)' : 'var(--red)';
+    const e = +s.entry_price, sl = +s.stop_loss, tp3 = +s.take_profit;
+    const risk = Math.abs(e - sl);
+    const sgn = dir === 'LONG' ? 1 : -1;
+    const tp1 = e + sgn * risk, tp2 = e + sgn * 2 * risk;
+    const fmt = v => { const n = +v; return isFinite(n) ? (n >= 1 ? n.toLocaleString('en-US', { maximumFractionDigits: 2 }) : n.toPrecision(4)) : v; };
+    if (symEl) symEl.textContent = (s.symbol || '').replace('USDT', '') + '/' + (s.timeframe || '').toUpperCase() + (s.tier > 1 ? ' T' + s.tier : '');
+    const st = s.status === 'ACTIVE' ? '<span class="badge badge-strong">ACTIVE</span>' : (s.result === true ? '<span class="badge" style="background:#12361f;color:#3fb950">TRUE ✅</span>' : '<span class="badge" style="background:#3d1d1d;color:#f85149">FALSE ❌</span>');
+    box.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center"><span>Signal Type: <b style="color:${c};font-size:15px">${dir}</b></span>${st}</div>
+      <div>Leverage: <b>Cross (10X)</b></div>
+      <div style="margin-top:10px;color:var(--muted);font-size:11px;letter-spacing:1px">ENTRY TARGETS</div>
+      <div>1) <b style="color:var(--yellow)">${fmt(e)}</b></div>
+      <div style="margin-top:10px;color:var(--muted);font-size:11px;letter-spacing:1px">TAKE-PROFIT TARGETS</div>
+      <div>1) <b style="color:var(--green)">${fmt(tp1)}</b></div>
+      <div>2) <b style="color:var(--green)">${fmt(tp2)}</b></div>
+      <div>3) <b style="color:var(--green)">${fmt(tp3)}</b></div>
+      <div style="margin-top:10px;color:var(--muted);font-size:11px;letter-spacing:1px">STOP TARGETS</div>
+      <div>1) <b style="color:var(--red)">${fmt(sl)}</b></div>
+      <div style="margin-top:10px;font-size:11px;color:var(--muted)">${new Date(s.signal_time).toLocaleString('en-GB')}</div>`;
+  } catch (e2) { box.innerHTML = '<div style="color:var(--muted);text-align:center;padding:18px 0">Signal feed unreachable…</div>'; }
+}
+
 function startApp() {
+  loadLiveSignal(); setInterval(loadLiveSignal, 30000);
   loadDbSignals(); setInterval(loadDbSignals, 30000);
   loadWeekly(); setInterval(loadWeekly, 60000);
   loadSentimentGauge(); setInterval(loadSentimentGauge, 60000);
