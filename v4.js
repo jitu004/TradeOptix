@@ -216,7 +216,7 @@ function tfxFail(box) {
 function showLogin(msg) {
   lockScreen(`
     <div id="loginCard" style="background:#161b22;border:1px solid #30363d;border-radius:14px;padding:32px 36px;width:360px;color:#e6edf3">
-      <div id="tfxMascotBox" style="text-align:center;margin-bottom:12px;white-space:nowrap">${tfxMascot(30)}</div>
+      <div id="tfxMascotBox" style="text-align:center;white-space:nowrap;min-height:6px"></div>
       <div style="font-size:22px;font-weight:800;margin-bottom:4px;text-align:center">⚡ TRADE<span style="color:#f0b90b">OPTIX</span></div>
       <div style="font-size:12px;color:#8b949e;margin-bottom:16px;text-align:center">Private access — please sign in to continue</div>
       <input id="lgEmail" type="email" placeholder="Email" style="width:100%;box-sizing:border-box;background:#0d1117;border:1px solid #30363d;color:#e6edf3;padding:10px 12px;border-radius:8px;margin-bottom:10px;font-size:14px">
@@ -307,14 +307,13 @@ async function onLogin(user) {
 }
 
 function addLogoutBtn(email) {
-  const h = document.querySelector('header');
-  if (!h || document.getElementById('lgOut')) return;
-  h.insertAdjacentHTML('beforeend',
-    `<span id="lgUser" style="font-size:11px;color:#8b949e;margin-left:8px">${email}</span>
-     <button id="lgOut" style="background:#21262d;border:1px solid #30363d;color:#e6edf3;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:6px">Logout</button>`);
+  document.getElementById('lgOut')?.remove?.();
+  document.getElementById('lgUser')?.remove?.();
+  document.body.insertAdjacentHTML('beforeend',
+    `<div id="lgUser" title="${email}" style="position:fixed;top:10px;right:92px;z-index:9999;font-size:11px;color:#8b949e;background:rgba(13,17,23,.9);padding:7px 11px;border-radius:8px;border:1px solid #30363d;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${email}</div>
+     <button id="lgOut" style="position:fixed;top:10px;right:10px;z-index:9999;background:#f0b90b;border:none;color:#000;font-weight:800;padding:7px 14px;border-radius:8px;font-size:11px;cursor:pointer">Logout</button>`);
   document.getElementById('lgOut').onclick = () => { clearAuth(); location.reload(); };
 }
-
 /* --- Login Activity panel (sirf logged-in users ko dikhta hai) --- */
 async function loadLoginActivity() {
   const el = document.getElementById('loginList');
