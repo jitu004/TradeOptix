@@ -359,6 +359,23 @@ export default async function handler(_req: Request, _ctx: unknown): Promise<Res
   }
 
   async function insert(sym: string, tf: string, sig: any, tier: number, sentAligned: boolean): Promise<void> {
+    // EK COIN = EK ACTIVE SIGNAL — BEST wala jeete: significantly better signal aaye toh REPLACE
+    try {
+      const act = await runSql(`SELECT id,tier,pattern FROM signals WHERE symbol='${esc(sym)}' AND status='ACTIVE' LIMIT 1`);
+      if (act.length) {
+        const cur = act[0];
+        const newQ = (5 - tier) + (sig.pat ? 0.5 : 0);          // LOW tier = HIGH quality (T1 best)
+        const curQ = (5 - (+cur.tier)) + (cur.pattern ? 0.5 : 0);
+        if (newQ > curQ) {   // strictly behtar ho toh replace (Q bounded — infinite flip nahi)
+          await runSql(`UPDATE signals SET status='CANCELLED', resolved_at=now() WHERE id='${cur.id}'`);
+          await log("INFO", `${sym}: ⬆️ SIGNAL UPGRADE — purana T${cur.tier} CANCELLED, naya T${tier}${sig.pat ? ' (pattern)' : ''} ACTIVE`);
+        } else {
+          logs.push(`-- ${sym}: already ACTIVE (T${cur.tier}) — naya T${tier} skip`);
+          await log("INFO", `${sym}: naya signal skip — ACTIVE T${cur.tier} behtar/barabar hai`);
+          return;
+        }
+      }
+    } catch { /* continue */ }
     const tw = weights.tierW[String(tier)] ?? 1, dw = weights.dirW[String(sig.dir)] ?? 1, pw = sig.pat ? weights.patW : 1;
     const wMult = tw * dw * pw;
     if (wMult !== 1) sig.score = sig.score * wMult;
@@ -373,19 +390,40 @@ export default async function handler(_req: Request, _ctx: unknown): Promise<Res
     await whatsappAlert(sym, tf, sig, tier);
   }
 
-  // --- mobile alert (WhatsApp via CallMeBot — free) ---
+  // --- mobile alert: EMAIL (Brevo — reliable) + WhatsApp (Twilio/CallMeBot, optional) ---
+  async function sendAlertEmail(subject: string, text: string): Promise<boolean> {
+    const BREVO = Deno.env.get("BREVO_KEY") ?? "";
+    const ADMIN = (Deno.env.get("ADMIN_EMAILS") ?? "").split(",")[0]?.trim();
+    if (!BREVO || !ADMIN) return false;
+    try {
+      const r = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: { "api-key": BREVO, "Content-Type": "application/json" },
+        body: JSON.stringify({ sender: { name: "TradeOptix Signals", email: "noreply@tradeoptix.app" }, to: [{ email: ADMIN }], subject, textContent: text }),
+      });
+      return r.ok;
+    } catch { return false; }
+  }
   async function whatsappAlert(sym: string, tf: string, sig: any, tier: number): Promise<void> {
-    const WA_PHONE = Deno.env.get("WHATSAPP_PHONE");     // e.g. +919876543210
-    const WA_KEY = Deno.env.get("WHATSAPP_APIKEY");      // CallMeBot apikey
-    if (!WA_PHONE || !WA_KEY) return;                    // env vars nahi hain toh silently skip
     const d = sig.dir === 1 ? "🟢 LONG" : "🔴 SHORT";
     const msg = `⚡ TradeOptix Signal\n${d} ${sym} (${tf.toUpperCase()}${tier > 1 ? " T" + tier : ""})\nEntry: ${sig.entry.toFixed(6)}\nSL: ${sig.sl.toFixed(6)}\nTP: ${sig.tp3.toFixed(6)}\nSentiment: ${sent.score}/100 ${sent.label}`;
+    const mailed = await sendAlertEmail(`⚡ SIGNAL: ${d} ${sym} (${tf.toUpperCase()})`, msg);
+    if (mailed) await log("INFO", `Email alert sent — ${sym} ${tf}`);
+    const TO = Deno.env.get("WHATSAPP_PHONE");
+    if (!TO) return;
     try {
-      await fetch(`https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(WA_PHONE)}&apikey=${WA_KEY}&text=${encodeURIComponent(msg)}`);
-      await log("INFO", `WhatsApp alert sent — ${sym} ${tf}`);
-    } catch (e) {
-      await log("WARN", `WhatsApp alert failed: ${String(e)}`);
-    }
+      const SID = Deno.env.get("TWILIO_SID"), TOK = Deno.env.get("TWILIO_TOKEN"), FROM = Deno.env.get("TWILIO_FROM");
+      if (SID && TOK && FROM) {
+        await fetch(`https://api.twilio.com/2010-04-01/Accounts/${SID}/Messages.json`, {
+          method: "POST",
+          headers: { Authorization: `Basic ${btoa(`${SID}:${TOK}`)}`, "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ From: FROM, To: TO.startsWith("whatsapp:") ? TO : `whatsapp:${TO}`, Body: msg }).toString(),
+        });
+        return;
+      }
+      const WA_KEY = Deno.env.get("WHATSAPP_APIKEY");
+      if (WA_KEY) await fetch(`https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(TO)}&apikey=${WA_KEY}&text=${encodeURIComponent(msg)}`);
+    } catch { /* whatsapp fail = ok, email already sent */ }
   }
 
   if (madeToday < quotaToday) {

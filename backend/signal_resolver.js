@@ -67,19 +67,37 @@ export default async function handler(_req: Request, _ctx: unknown): Promise<Res
     results.push(`${result ? "TRUE" : "FALSE"} ${s.symbol} ${why} pnl=${pnl.toFixed(2)}%`);
     await log(result ? "TRUE" : "FALSE", `${s.symbol} ${s.direction === 1 ? "LONG" : "SHORT"} → ${result ? "TRUE ✅" : "FALSE ❌"} (${why}) | exit ${exitP} | PnL ${pnl.toFixed(2)}%`);
 
-    // mobile alert on result (WhatsApp via CallMeBot)
-    const WA_PHONE = Deno.env.get("WHATSAPP_PHONE");
-    const WA_KEY = Deno.env.get("WHATSAPP_APIKEY");
-    if (WA_PHONE && WA_KEY) {
+    // result alert: EMAIL (Brevo — reliable) + whatsapp optional
+    const icon = result ? "✅ TRUE" : "❌ FALSE";
+    const rmsg = `${icon} ${s.symbol} ${s.direction === 1 ? "LONG" : "SHORT"} (${why})\nExit: ${exitP}\nPnL: ${pnl.toFixed(2)}%`;
+    try {
+      const BREVO = Deno.env.get("BREVO_KEY") ?? "";
+      const ADMIN = (Deno.env.get("ADMIN_EMAILS") ?? "").split(",")[0]?.trim();
+      if (BREVO && ADMIN) {
+        await fetch("https://api.brevo.com/v3/smtp/email", {
+          method: "POST",
+          headers: { "api-key": BREVO, "Content-Type": "application/json" },
+          body: JSON.stringify({ sender: { name: "TradeOptix Signals", email: "noreply@tradeoptix.app" }, to: [{ email: ADMIN }], subject: `${icon} RESULT: ${s.symbol}`, textContent: rmsg }),
+        });
+      }
+    } catch { /* non-fatal */ }
+    const TO2 = Deno.env.get("WHATSAPP_PHONE");
+    if (TO2) {
       try {
-        const icon = result ? "✅ TRUE" : "❌ FALSE";
-        const msg = `${icon} ${s.symbol} ${s.direction === 1 ? "LONG" : "SHORT"} (${why})\nExit: ${exitP}\nPnL: ${pnl.toFixed(2)}%`;
-        await fetch(`https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(WA_PHONE)}&apikey=${WA_KEY}&text=${encodeURIComponent(msg)}`);
-      } catch { /* alert fail = non-fatal */ }
+        const SID = Deno.env.get("TWILIO_SID"), TOK = Deno.env.get("TWILIO_TOKEN"), FROM = Deno.env.get("TWILIO_FROM");
+        if (SID && TOK && FROM) {
+          await fetch(`https://api.twilio.com/2010-04-01/Accounts/${SID}/Messages.json`, {
+            method: "POST",
+            headers: { Authorization: `Basic ${btoa(`${SID}:${TOK}`)}`, "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ From: FROM, To: TO2.startsWith("whatsapp:") ? TO2 : `whatsapp:${TO2}`, Body: rmsg }).toString(),
+          });
+        } else {
+          const WA_KEY = Deno.env.get("WHATSAPP_APIKEY");
+          if (WA_KEY) await fetch(`https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(TO2)}&apikey=${WA_KEY}&text=${encodeURIComponent(rmsg)}`);
+        }
+      } catch { /* non-fatal */ }
     }
-  }
-
-  return new Response(JSON.stringify({ checked: rows.length, results, at: new Date().toISOString() }, null, 2), {
+  }  return new Response(JSON.stringify({ checked: rows.length, results, at: new Date().toISOString() }, null, 2), {
     status: 200, headers: { "Content-Type": "application/json" },
   });
 }

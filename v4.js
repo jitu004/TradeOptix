@@ -118,12 +118,35 @@ function renderWeeklyDetail() {
     const st = x.status === 'ACTIVE' ? '<span class="badge badge-strong">ACTIVE</span>'
       : x.result === true ? '<span class="badge" style="background:#12361f;color:#3fb950">TRUE ✅</span>'
       : '<span class="badge" style="background:#3d1d1d;color:#f85149">FALSE ❌</span>';
-    return `<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px">
+        const fmt2 = v => { const n = +v; return isFinite(n) ? (n >= 1 ? n.toLocaleString('en-US', { maximumFractionDigits: 4 }) : n.toPrecision(4)) : v; };
+    let ach = '';
+    if (x.status !== 'ACTIVE' && x.exit_price != null) {
+      const risk = Math.abs((+x.entry_price) - (+x.stop_loss)) || 1e-9;
+      const sgn = x.direction === 1 ? 1 : -1;
+      const ep = +x.exit_price;
+      const near = (target) => Math.abs(ep - target) < risk * 0.03;
+      const pnl = x.pnl_pct != null ? `<b>${x.pnl_pct > 0 ? '+' : ''}${x.pnl_pct}%</b>` : '';
+      if (x.result === true) {
+        const which = near(+x.entry_price + sgn * risk) ? 'TP1' : near(+x.entry_price + sgn * 2 * risk) ? 'TP2' : near(+x.take_profit) ? 'TP3' : 'TP';
+        ach = `<div style="margin-top:4px;font-size:11px;color:var(--green)">✅ ${which} ACHIEVED \u00B7 Exit <b>${fmt2(x.exit_price)}</b> \u00B7 PnL ${pnl}</div>`;
+      } else if (x.status === 'SL_HIT') {
+        ach = `<div style="margin-top:4px;font-size:11px;color:var(--red)">❌ SL HIT \u00B7 Exit <b>${fmt2(x.exit_price)}</b> \u00B7 PnL ${pnl}</div>`;
+      } else {
+        ach = `<div style="margin-top:4px;font-size:11px;color:var(--muted)">\u231B Expired \u00B7 Exit <b>${fmt2(x.exit_price)}</b> \u00B7 PnL ${pnl}</div>`;
+      }
+    } else if (x.status === 'ACTIVE') {
+      const risk2 = Math.abs((+x.entry_price) - (+x.stop_loss)) || 1e-9;
+      const sgn2 = x.direction === 1 ? 1 : -1;
+      const pct = (v) => (((v - +x.entry_price) / +x.entry_price) * 100).toFixed(1);
+      ach = `<div style="margin-top:4px;font-size:10px;color:var(--muted)">\u23F3 Waiting \u00B7 TP1 ${fmt2(+x.entry_price + sgn2 * risk2)} (${pct(+x.entry_price + sgn2 * risk2)}%) \u00B7 TP2 ${fmt2(+x.entry_price + sgn2 * 2 * risk2)} (${pct(+x.entry_price + sgn2 * 2 * risk2)}%)</div>`;
+    }
+return `<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:6px">
         <b style="color:${x.direction === 1 ? 'var(--green)' : 'var(--red)'}">${x.direction === 1 ? 'LONG' : 'SHORT'} ${String(x.symbol).replace('USDT', '')}</b>
         <span style="color:var(--muted);font-size:10px">${(x.timeframe || '').toUpperCase()}${x.tier > 1 ? ' T' + x.tier : ''}${x.pattern ? ' \u{1F56F}' + x.pattern : ''}</span>${st}
       </div>
       <div style="font-family:var(--mono);color:var(--muted)">Entry <b style="color:var(--yellow)">${fmt(x.entry_price)}</b> \u00B7 SL <b style="color:var(--red)">${fmt(x.stop_loss)}</b> \u00B7 TP <b style="color:var(--green)">${fmt(x.take_profit)}</b>${x.pnl_pct != null ? ` \u00B7 PnL <b style="color:${x.pnl_pct > 0 ? 'var(--green)' : 'var(--red)'}">${x.pnl_pct}%</b>` : ''}</div>
+      ${ach}
       <div style="font-size:10px;color:var(--muted);margin-top:2px">${new Date(x.signal_time).toLocaleString('en-GB')}${x.resolved_at ? ' \u2192 ' + new Date(x.resolved_at).toLocaleString('en-GB') : ''}</div>
     </div>`;
   }).join('') || '<div style="color:var(--muted);text-align:center;padding:10px">No signals in this filter</div>';
