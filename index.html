@@ -98,7 +98,7 @@ select:focus,input:focus{border-color:var(--yellow)}
   <select id="symbolSel"><option>Loading coins…</option></select>
   <div class="price-box">
     <span id="livePrice">—</span>
-    <img id="priceDogImg" src="dog-up.jpg" alt="Mood dog" title="Market mood" style="height:38px;margin-left:8px;border-radius:10px;vertical-align:middle"><span id="priceChg">—</span>
+    <img id="priceDogImg" src="dog-up.png?v=4" alt="Mood dog" title="Market mood" style="height:38px;margin-left:8px;border-radius:10px;vertical-align:middle"><span id="priceChg">—</span>
   </div>
 </div>
 
@@ -375,7 +375,7 @@ async function fetchKlinesPaginated(){
 function dogMood(mode){
   const dog=document.getElementById('priceDogImg');
   if(!dog)return;
-  dog.src=mode==='up'?'dog-up.jpg':'dog-down.jpg';
+  dog.src=(mode==='up'?'dog-up.png':'dog-down.png')+'?v=3';
   dog.className=mode;
   dog.title=mode==='up'?'Market is up — dog is happy! 🎉':'Market is down — dog is sad, waiting for a rise… 📈';
 }
