@@ -153,7 +153,7 @@ select:focus,input:focus{border-color:var(--yellow)}
     </div>
     <div id="tv_chart" style="height:438px"></div>
     <div title="" style="position:absolute;left:0;bottom:66px;width:230px;height:44px;background:#131722;z-index:10;pointer-events:none;border-radius:4px"></div>
-    <a href="https://www.tradingview.com/chart/?symbol=BINANCE%3ABTCUSDT" target="_blank" title="Open BTC chart on TradingView" style="position:absolute;left:60.2%;top:42px;z-index:11;background:#131722;border:1px solid #363c4e;border-radius:8px;padding:2px 7px;text-decoration:none;line-height:1"><span style="background:#2962ff;color:#fff;border-radius:3px;padding:1px 4px;font-weight:800;font-size:9px;font-family:var(--mono)">TV</span></a>
+    <a href="https://www.tradingview.com/chart/?symbol=BINANCE%3ABTCUSDT" target="_blank" id="tvPill" title="Open chart on TradingView" style="position:absolute;left:60.2%;top:42px;z-index:11;background:#131722;border:1px solid #363c4e;border-radius:8px;padding:2px 7px;text-decoration:none;line-height:1"><span style="background:#2962ff;color:#fff;border-radius:3px;padding:1px 4px;font-weight:800;font-size:9px;font-family:var(--mono)">TV</span></a>
   </div>
 
   <!-- RIGHT: BACKTEST DETAIL -->
@@ -678,6 +678,7 @@ async function loadAll(){
 
 document.getElementById('symbolSel').addEventListener('change',e=>{
   sym=e.target.value;tracking=false;warnLevel=0;avgHoldBars=null;
+  const tvPill=document.getElementById('tvPill');if(tvPill)tvPill.href='https://www.tradingview.com/chart/?symbol=BINANCE:'+encodeURIComponent(sym);
   document.getElementById('alertBanner').style.display='none';
   document.getElementById('btnTrack').textContent='🛡️ Arm SL Guard — I\'m In';
   resetBT();
