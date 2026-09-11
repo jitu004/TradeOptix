@@ -56,7 +56,7 @@ async function loadDbSignals() {
       <span style="color:var(--muted)">${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
       <span class="badge ${s.timeframe === '4h' ? 'badge-mid' : 'badge-strong'}">${(s.timeframe || '').toUpperCase()}${s.tier > 1 ? ' T' + s.tier : ''}</span>${badge(s)}</div>`;
     }).join('');
-  } catch (e) { st.textContent = 'Feed unreachable — v4 functions deploy karo (README v4 section).'; }
+  } catch (e) { st.textContent = 'Feed unreachable — please deploy the v4 functions (see README).'; }
 }
 
 /* --- Weekly report: week me kitne signals, kitne % true, kaunse-kaunse --- */
@@ -79,7 +79,7 @@ async function loadWeekly() {
       <span style="color:${s.result ? 'var(--green)' : 'var(--red)'}">${s.result ? 'TRUE' : 'FALSE'} ${s.pnl_pct != null ? ((s.pnl_pct > 0 ? '+' : '') + Number(s.pnl_pct).toFixed(2) + '%') : ''}</span>
       <span style="color:var(--muted)">${r.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></div>`;
     }).join('') || '<div style="color:var(--muted);text-align:center;padding:12px">No resolved signals yet this week</div>';
-  } catch (e) { el.innerHTML = '<div class="note">Weekly API not deployed yet — backend/public_weekly.js deploy karo.</div>'; }
+  } catch (e) { el.innerHTML = '<div class="note">Weekly report API is not deployed yet — please deploy backend/public_weekly.js.</div>'; }
 }
 
 /* --- Live engine logs (har 3 sec poll) --- */
@@ -122,7 +122,7 @@ async function loadSentimentGauge() {
       ${bar(['Funding Sentiment', c.funding_sentiment || 0])}
       ${bar(['Volatility Regime', c.volatility_regime || 0])}
       <div style="font-size:10px;color:var(--muted);margin-top:8px">Sentiment signal engine ka quality gate hai — ye decide karta hai kaunse direction ke trades allowed hain.</div>`;
-  } catch (e) { el.innerHTML = '<div class="note">Sentiment engine not deployed yet — backend/market_sentiment.js deploy karo (schedule: 15 min, public ON).</div>'; }
+  } catch (e) { el.innerHTML = '<div class="note">Sentiment engine is not deployed yet — please deploy backend/market_sentiment.js (schedule: every 15 min, public access ON).</div>'; }
 }
 
 /* ================= AUTH GATE (InsForge native auth API — direct fetch) =================
@@ -203,7 +203,7 @@ function showLogin(msg, mode) {
   lockScreen(`
     <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;padding:32px 36px;width:360px;color:#e6edf3">
       <div style="font-size:22px;font-weight:800;margin-bottom:4px">⚡ TRADE<span style="color:#f0b90b">OPTIX</span></div>
-      <div style="font-size:12px;color:#8b949e;margin-bottom:16px">${isReq ? 'Request access — admin approval ke baad login milega' : 'Private access — sign in to continue'}</div>
+      <div style="font-size:12px;color:#8b949e;margin-bottom:16px">${isReq ? 'Request access — you can sign in once an administrator approves your account' : 'Private access — please sign in to continue'}</div>
       <div style="display:flex;gap:8px;margin-bottom:16px">
         <button id="tabIn" style="flex:1;padding:7px;border-radius:7px;border:1px solid #30363d;background:${isReq ? '#0d1117' : '#f0b90b'};color:${isReq ? '#e6edf3' : '#000'};font-weight:700;font-size:12px;cursor:pointer">Sign In</button>
         <button id="tabReq" style="flex:1;padding:7px;border-radius:7px;border:1px solid #30363d;background:${isReq ? '#f0b90b' : '#0d1117'};color:${isReq ? '#000' : '#e6edf3'};font-weight:700;font-size:12px;cursor:pointer">Request Access</button>
@@ -212,7 +212,7 @@ function showLogin(msg, mode) {
       <input id="lgPass" type="password" placeholder="Password (min 6 chars)" style="width:100%;box-sizing:border-box;background:#0d1117;border:1px solid #30363d;color:#e6edf3;padding:10px 12px;border-radius:8px;margin-bottom:14px;font-size:14px">
       <button id="lgBtn" style="width:100%;background:#f0b90b;border:none;color:#000;font-weight:800;padding:11px;border-radius:8px;font-size:14px;cursor:pointer">${isReq ? 'Submit Request' : 'Sign In'}</button>
       <div id="lgMsg" style="font-size:12px;color:${(msg || '').includes('✅') ? '#3fb950' : '#f85149'};margin-top:10px;min-height:16px">${msg || ''}</div>
-      <div style="font-size:11px;color:#8b949e;margin-top:14px;border-top:1px solid #30363d;padding-top:10px">${isReq ? 'Request submit hone ke baad admin approve karega — approval email aayega. Signup ke baad agar confirmation email aaye toh usko bhi confirm karna.' : 'Access sirf admin-approved accounts ka hai. Naya account? "Request Access" tab dabao.'}</div>
+      <div style="font-size:11px;color:#8b949e;margin-top:14px;border-top:1px solid #30363d;padding-top:10px">${isReq ? 'Your request will be reviewed by an administrator and you will be notified by email. If you receive a confirmation email, please verify it to activate your account.' : 'Access is restricted to approved accounts. Need an account? Select the "Request Access" tab above.'}</div>
     </div>`);
   document.getElementById('tabIn').onclick = () => showLogin('', 'signin');
   document.getElementById('tabReq').onclick = () => showLogin('', 'request');
@@ -227,14 +227,14 @@ function showLogin(msg, mode) {
         const usr = pickUser(res.data);
         if (!res.ok && !usr) { m.textContent = res.data.message || res.data.error || ('Signup failed (HTTP ' + res.status + ')'); b.textContent = 'Submit Request'; b.disabled = false; return; }
         await submitAccessRequest(em, (usr && (usr.id || usr.uid)) || '');
-        showLogin('✅ Request submitted! Jab admin approve karega tab email aayega. (Agar confirmation email aaye toh confirm karna.)', 'signin');
+        showLogin('✅ Request submitted! You will receive an email once an administrator approves your account. Please verify your email if you receive a confirmation link.', 'signin');
         return;
       }
       const res = await apiPost('/api/auth/sessions', { email: em, password: pw });
       const token = pickToken(res.data), usr = pickUser(res.data);
       if (!res.ok || !token) { m.textContent = res.data.message || res.data.error || ('Login failed (HTTP ' + res.status + ')'); b.textContent = 'Sign In'; b.disabled = false; return; }
       const ok = await checkApproval(em.toLowerCase());
-      if (!ok) { showLogin('⏳ Aapki access request abhi PENDING hai. Admin approve karega tab email aayega.', 'signin'); return; }
+      if (!ok) { showLogin('⏳ Your access request is pending approval. You will be notified by email once your account has been approved.', 'signin'); return; }
       saveAuth(usr || { email: em }, token);
       await onLogin(usr || { email: em });
     } catch (e) {
@@ -285,7 +285,7 @@ async function loadLoginActivity() {
         <b>${l.email}</b><br>
         <span style="color:var(--muted);font-size:11px">${new Date(l.ts).toLocaleString('en-GB')} · ${String(l.ua || '').slice(0, 60)}</span>
       </div>`).join('') || '<div style="color:var(--muted);text-align:center;padding:12px">No logins recorded yet</div>';
-  } catch (e) { el.innerHTML = '<div class="note">Session expired — Logout karke dobara login karo.</div>'; }
+  } catch (e) { el.innerHTML = '<div class="note">Session expired — please sign out and sign in again.</div>'; }
 }
 
 /* --- Access Requests panel (sirf admin ko dikhta hai) --- */
@@ -314,7 +314,7 @@ async function loadAccessRequests() {
         loadAccessRequests();
       };
     });
-  } catch (e) { el.innerHTML = '<div class="note">Requests load nahi hui.</div>'; }
+  } catch (e) { el.innerHTML = '<div class="note">Unable to load access requests.</div>'; }
 }
 
 function startApp() {
