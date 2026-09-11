@@ -107,7 +107,13 @@ select:focus,input:focus{border-color:var(--yellow)}
 <div class="main">
   <!-- LEFT: SIGNAL PANEL -->
   <div>
-    <div class="panel">
+  <!-- ⚡ LIVE SIGNAL -->
+      <h3>⚡ Live Signal <span id="liveSigSym" style="color:var(--yellow)"></span></h3>
+      <div id="liveSigBox" style="font-family:var(--mono);font-size:13px;line-height:2;color:var(--text)">
+        <div style="color:var(--muted);text-align:center;padding:18px 0">No active signal — waiting for setup…</div>
+      </div>
+
+    <div class="panel" style="display:none">
       <h3>Live Signal <span id="edgeBadge" class="badge badge-mid">—</span></h3>
       <div id="signalCard" class="signal-card sig-wait">
         <div class="sig-type" id="sigType">WAIT</div>
@@ -154,13 +160,9 @@ select:focus,input:focus{border-color:var(--yellow)}
     <div id="tv_chart" style="height:438px"></div>
   </div>
 
-  <!-- RIGHT: LIVE SIGNAL -->
+  <!-- RIGHT: CONVERTER -->
   <div>
     <div class="panel">
-      <h3>⚡ Live Signal <span id="liveSigSym" style="color:var(--yellow)"></span></h3>
-      <div id="liveSigBox" style="font-family:var(--mono);font-size:13px;line-height:2;color:var(--text)">
-        <div style="color:var(--muted);text-align:center;padding:18px 0">No active signal — waiting for setup…</div>
-      </div>
     </div>
     <div class="panel" style="margin-top:14px">
       <h3>💱 Currency Converter</h3>
