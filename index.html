@@ -19,8 +19,9 @@
   .header { flex-wrap: wrap; padding: 10px 12px; gap: 8px; }
   .price-box { position: static !important; transform: none !important; order: 3; width: 100%; justify-content: center; margin-top: 4px; }
   #livePrice { font-size: 22px !important; }
-  #tv_chart { height: 420px !important; touch-action: none; }
-  #tvScroll { max-height: 420px !important; }
+  #tv_chart { height: 480px !important; margin: 0 -14px; width: calc(100% + 28px) !important; }
+  #tvScroll { max-height: none !important; overflow: visible !important; }
+  .panel { overflow: visible !important; }
   .bottom-grid > div, [style*="max-width:1750px"] { grid-template-columns: 1fr !important; }
   #lgUser { right: 86px !important; top: 6px !important; }
   #lgOut { top: 6px !important; }
